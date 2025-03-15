@@ -69,18 +69,16 @@ const Bays = () => {
           <TabsTrigger value="all">All Bays</TabsTrigger>
           <TabsTrigger value="available">Available</TabsTrigger>
           <TabsTrigger value="reserved">Reserved</TabsTrigger>
-          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
         </TabsList>
         
-        {['all', 'available', 'reserved', 'maintenance'].map((tab) => (
+        {['all', 'available', 'reserved'].map((tab) => (
           <TabsContent key={tab} value={tab} className="space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {bays
                 .filter(bay => 
                   tab === 'all' || 
                   (tab === 'available' && bay.status === 'Available') ||
-                  (tab === 'reserved' && bay.status === 'Reserved') ||
-                  (tab === 'maintenance' && bay.status === 'Maintenance')
+                  (tab === 'reserved' && bay.status === 'Reserved')
                 )
                 .map(bay => <BayCard key={bay.bay_id} bay={bay} onClick={handleBayClick} />)
               }
@@ -88,8 +86,7 @@ const Bays = () => {
               {bays.filter(bay => 
                 tab === 'all' || 
                 (tab === 'available' && bay.status === 'Available') ||
-                (tab === 'reserved' && bay.status === 'Reserved') ||
-                (tab === 'maintenance' && bay.status === 'Maintenance')
+                (tab === 'reserved' && bay.status === 'Reserved')
               ).length === 0 && (
                 <div className="col-span-full">
                   <Card className="bg-[#0F1624] border-[#1E2A45] text-white">
