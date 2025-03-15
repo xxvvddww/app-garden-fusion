@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,9 +23,14 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 const Login = () => {
   const { user, session, loading, signIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [redirectAttempts, setRedirectAttempts] = useState(0);
+
+  // Get the intended destination from location state, or default to '/'
+  const from = location.state?.from?.pathname || '/';
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -35,31 +40,63 @@ const Login = () => {
     },
   });
 
-  // Effect to redirect user when authentication state changes
+  // Effect for redirection logic
   useEffect(() => {
-    console.log("Auth state changed:", { user, loading });
-    if (user && !loading) {
-      console.log("Redirecting to home page");
-      navigate('/', { replace: true });
-    }
-  }, [user, loading, navigate]);
+    const redirectIfAuthenticated = () => {
+      console.log("Checking auth state for redirect:", { 
+        user, 
+        loading, 
+        session, 
+        redirectAttempts 
+      });
+      
+      if (!loading) {
+        if (user && session) {
+          console.log("User is authenticated, redirecting to:", from);
+          navigate(from, { replace: true });
+        } else if (redirectAttempts < 5 && session && !user) {
+          // If we have a session but no user yet, wait a bit and retry
+          console.log("Session exists but no user yet, waiting...");
+          setTimeout(() => {
+            setRedirectAttempts(prev => prev + 1);
+          }, 500);
+        }
+      }
+    };
+    
+    redirectIfAuthenticated();
+  }, [user, loading, session, navigate, from, redirectAttempts]);
 
   const onSubmit = async (values: LoginFormValues) => {
+    if (isSubmitting) return;
+    
     setIsSubmitting(true);
     try {
+      console.log("Attempting to sign in with:", values.email);
       const { error } = await signIn(values.email, values.password);
+      
       if (error) {
+        console.error("Sign in failed:", error);
         toast({
           title: 'Sign in failed',
           description: error,
           variant: 'destructive',
         });
       } else {
+        console.log("Sign in successful, toast notification shown");
         toast({
           title: 'Welcome back',
           description: 'You have been signed in successfully.',
         });
+        // The redirect will be handled by the useEffect
       }
+    } catch (err) {
+      console.error("Unexpected error during sign in:", err);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -69,10 +106,30 @@ const Login = () => {
     setAuthMode(authMode === 'login' ? 'signup' : 'login');
   };
 
-  // Direct redirect if already logged in
-  if (user && !loading) {
-    console.log("User is logged in, redirecting immediately", user);
-    return <Navigate to="/" replace />;
+  // Immediate redirect if the user is already authenticated
+  if (!loading && user && session) {
+    console.log("User is already authenticated, redirecting immediately");
+    return <Navigate to={from} replace />;
+  }
+
+  // Show loading state while authentication is being checked
+  if (loading) {
+    console.log("Auth is loading, showing loading state");
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-2 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="p-3 bg-primary/10 rounded-full">
+                <LucideCarFront className="h-8 w-8 text-primary animate-pulse" />
+              </div>
+            </div>
+            <CardTitle className="text-xl">Loading...</CardTitle>
+            <CardDescription>Please wait while we authenticate you</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
   }
 
   return (

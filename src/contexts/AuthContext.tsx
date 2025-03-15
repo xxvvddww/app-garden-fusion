@@ -24,60 +24,119 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log("AuthProvider initialized");
     
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("Initial session:", session);
-      setSession(session);
-      if (session) {
-        fetchUserProfile(session.user.id);
-      } else {
+    const initAuth = async () => {
+      try {
+        // Get initial session
+        const { data: sessionData } = await supabase.auth.getSession();
+        console.log("Initial session fetched:", sessionData.session);
+        
+        setSession(sessionData.session);
+        
+        if (sessionData.session) {
+          await fetchUserProfile(sessionData.session.user.id);
+        } else {
+          setLoading(false);
+        }
+        
+        // Set up auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+          console.log("Auth state changed:", event, newSession);
+          setSession(newSession);
+          
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (newSession) {
+              await fetchUserProfile(newSession.user.id);
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+            setLoading(false);
+          }
+        });
+        
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error("Error in auth initialization:", error);
         setLoading(false);
       }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log("Auth state changed:", _event, session);
-      setSession(session);
-      if (session) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    };
+    
+    initAuth();
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      setLoading(true);
       console.log("Fetching user profile for:", userId);
-      // Removed the .single() method which was causing the error
-      const { data, error } = await supabase
+      
+      // Create a user record if it doesn't exist
+      const { data: existingUsers, error: queryError } = await supabase
         .from('users')
         .select('*')
         .eq('user_id', userId);
-
-      if (error) {
+      
+      if (queryError) {
+        console.error('Error checking user profile:', queryError);
         toast({
           title: "Error",
           description: "Failed to fetch user profile. Please try logging in again.",
           variant: "destructive",
         });
-        console.error('Error fetching user profile:', error);
         setLoading(false);
-      } else if (data && data.length > 0) {
-        // Take the first row if multiple rows are returned
-        console.log("User profile fetched:", data[0]);
-        setUser(data[0] as User);
-        setLoading(false);
+        return;
+      }
+
+      if (!existingUsers || existingUsers.length === 0) {
+        console.log("No user profile found, creating one");
+        
+        // Get user metadata from auth
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (!authUser) {
+          console.error("Auth user not found");
+          setLoading(false);
+          return;
+        }
+        
+        // Create a new user record
+        const { data: newUser, error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            user_id: userId,
+            email: authUser.email,
+            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+            role: 'User',
+            status: 'Active'
+          }])
+          .select('*')
+          .single();
+          
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+          toast({
+            title: "Error",
+            description: "Failed to create user profile. Please try logging in again.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        
+        console.log("User profile created:", newUser);
+        setUser(newUser as User);
       } else {
-        console.log("No user profile found, setting loading to false");
-        setLoading(false);
+        console.log("User profile found:", existingUsers[0]);
+        setUser(existingUsers[0] as User);
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Error in fetchUserProfile:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while fetching your profile.",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
     }
   };
@@ -85,22 +144,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Signing in with email:", email);
+      setLoading(true);
+      
       const { error } = await supabase.auth.signInWithPassword({ email, password });
+      
       if (error) {
         console.error("Sign in error:", error.message);
+        setLoading(false);
         return { error: error.message };
       }
+      
       console.log("Sign in successful");
       return { error: null };
     } catch (error) {
       console.error('Sign in error:', error);
+      setLoading(false);
       return { error: 'An unexpected error occurred' };
     }
   };
 
   const signOut = async () => {
+    setLoading(true);
     try {
       await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
     } catch (error) {
       console.error('Sign out error:', error);
       toast({
@@ -108,6 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "Failed to sign out. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
