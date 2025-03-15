@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { type ThemeProviderProps } from "next-themes/dist/types";
+import { useTheme as useNextTheme } from "next-themes";
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const [mounted, setMounted] = useState(false);
@@ -30,16 +31,9 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
 
 export const ThemeContext = createContext<{ isDark: boolean }>({ isDark: true });
 
-// Add this hook to use the theme directly from next-themes
+// Use next-themes' useTheme hook directly
 export const useTheme = () => {
-  // Import useTheme from next-themes and re-export it with our interface
-  const { theme, setTheme } = useContext(
-    // @ts-ignore - This context exists in next-themes
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (globalThis as any).__NEXT_THEMES__ || createContext({ theme: 'dark', setTheme: () => {} })
-  );
-
-  return { theme, setTheme };
+  return useNextTheme();
 };
 
 export const ThemeContextProvider = ({ children }: { children: React.ReactNode }) => {
