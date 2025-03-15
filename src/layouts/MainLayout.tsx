@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -37,7 +37,6 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
-  useSidebar
 } from "@/components/ui/sidebar";
 
 interface MainLayoutProps {
@@ -121,13 +120,13 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   const { theme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const { toggleSidebar } = useSidebar();
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
   };
 
+  // IMPORTANT: We've moved the SidebarProvider to wrap the entire layout
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-background">
@@ -137,11 +136,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         <div className="flex flex-col flex-grow overflow-hidden">
           {/* Header */}
           <header className="flex items-center justify-between h-16 px-4 border-b border-border">
-            <Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle Menu</span>
-            </Button>
-            <SidebarTrigger className="hidden md:flex" />
+            <SidebarTrigger className="md:flex" />
             
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
