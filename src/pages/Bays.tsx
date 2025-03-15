@@ -43,9 +43,9 @@ const Bays = () => {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-64" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-[180px] w-full" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {[...Array(12)].map((_, i) => (
+            <Skeleton key={i} className="h-[120px] w-full" />
           ))}
         </div>
       </div>
@@ -66,7 +66,7 @@ const Bays = () => {
         
         {['all', 'available', 'reserved', 'maintenance'].map((tab) => (
           <TabsContent key={tab} value={tab} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {bays
                 .filter(bay => 
                   tab === 'all' || 
@@ -85,8 +85,8 @@ const Bays = () => {
               ).length === 0 && (
                 <div className="col-span-full">
                   <Card className="bg-[#0F1624] border-[#1E2A45] text-white">
-                    <CardContent className="p-6">
-                      <p className="text-center text-gray-400 py-8">
+                    <CardContent className="p-4">
+                      <p className="text-center text-gray-400 py-4">
                         No {tab === 'all' ? 'bays' : `${tab} bays`} found
                       </p>
                     </CardContent>
