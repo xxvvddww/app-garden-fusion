@@ -10,6 +10,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import MainLayout from "@/layouts/MainLayout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import Users from "@/pages/Users";
+import Bays from "@/pages/Bays";
+import MyBay from "@/pages/MyBay";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +35,39 @@ const App = () => (
                     <ProtectedRoute>
                       <MainLayout>
                         <Dashboard />
+                      </MainLayout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/users"
+                  element={
+                    <ProtectedRoute requiredRole="Moderator">
+                      <MainLayout>
+                        <Users />
+                      </MainLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/bays"
+                  element={
+                    <ProtectedRoute>
+                      <MainLayout>
+                        <Bays />
+                      </MainLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/my-bay"
+                  element={
+                    <ProtectedRoute>
+                      <MainLayout>
+                        <MyBay />
                       </MainLayout>
                     </ProtectedRoute>
                   }
