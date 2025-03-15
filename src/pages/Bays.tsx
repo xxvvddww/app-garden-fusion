@@ -7,10 +7,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import BayCard from '@/components/BayCard';
+import ReserveBayDialog from '@/components/ReserveBayDialog';
 
 const Bays = () => {
   const [bays, setBays] = useState<Bay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBay, setSelectedBay] = useState<Bay | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -37,6 +40,11 @@ const Bays = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBayClick = (bay: Bay) => {
+    setSelectedBay(bay);
+    setDialogOpen(true);
   };
 
   if (loading) {
@@ -74,7 +82,7 @@ const Bays = () => {
                   (tab === 'reserved' && bay.status === 'Reserved') ||
                   (tab === 'maintenance' && bay.status === 'Maintenance')
                 )
-                .map(bay => <BayCard key={bay.bay_id} bay={bay} />)
+                .map(bay => <BayCard key={bay.bay_id} bay={bay} onClick={handleBayClick} />)
               }
               
               {bays.filter(bay => 
@@ -97,6 +105,13 @@ const Bays = () => {
           </TabsContent>
         ))}
       </Tabs>
+
+      <ReserveBayDialog 
+        bay={selectedBay}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={fetchBays}
+      />
     </div>
   );
 };

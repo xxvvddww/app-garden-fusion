@@ -1,199 +1,179 @@
-
-import { ReactNode, useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useTheme } from 'next-themes';
-import { LucideCarFront, LucideMoon, LucideSun, LucideLogOut, LucideUser, LucidePanelLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { useToast } from '@/components/ui/use-toast';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useTheme } from '@/contexts/ThemeProvider';
 import { cn } from '@/lib/utils';
+import { 
+  SunMedium, 
+  MoonStar, 
+  LayoutDashboard, 
+  Users, 
+  ParkingSquare, 
+  LogOut,
+  UserCog
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-const MainLayout = ({ children }: { children: ReactNode }) => {
-  const { user, loading, signOut } = useAuth();
+interface MainLayoutProps {
+  children: React.ReactNode;
+}
+
+const MainLayout = ({ children }: MainLayoutProps) => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { theme, setTheme } = useTheme();
+  const { user, signOut } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const isMobile = useIsMobile();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
 
   useEffect(() => {
-    // TODO: Check for unread announcements
-    // This is just a placeholder for now
-    setUnreadAnnouncements(0);
-  }, [user]);
+    const handleResize = () => {
+      setIsSidebarOpen(window.innerWidth >= 768);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme(theme === "light" ? "dark" : "light");
+  };
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
 
   const handleSignOut = async () => {
     await signOut();
-    toast({
-      title: "Signed out",
-      description: "You have been signed out successfully.",
-    });
     navigate('/login');
   };
 
-  const handleThemeToggle = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
-
-  const mainNavigationItems = user ? [
-    { name: 'Dashboard', href: '/' },
-    { name: 'Bays', href: '/bays' },
-    { name: 'My Bay', href: '/my-bay' },
-  ] : [];
-
-  if (user?.role === 'Admin' || user?.role === 'Moderator') {
-    mainNavigationItems.push(
-      { name: 'Users', href: '/users' },
-      { name: 'Assignments', href: '/assignments' }
-    );
-  }
-
-  if (user?.role === 'Admin') {
-    mainNavigationItems.push(
-      { name: 'Audit Logs', href: '/audit-logs' },
-      { name: 'Announcements', href: '/announcements' }
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="border-b border-border">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <Skeleton className="h-8 w-32" />
-            <div className="flex items-center gap-4">
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <Skeleton className="h-10 w-10 rounded-full" />
-            </div>
-          </div>
-        </header>
-        <main className="flex-1 container mx-auto px-4 py-6">
-          <div className="grid gap-6">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-64 w-full" />
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const navigationContent = (
-    <div className={cn(
-      "h-full flex flex-col",
-      !isMobile && "w-64"
-    )}>
-      <div className="p-4 border-b border-border">
-        {user ? (
-          <div className="flex flex-col gap-2">
-            <p className="font-medium">{user.name}</p>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
-            <p className="text-xs text-muted-foreground uppercase bg-secondary rounded-md px-2 py-1 inline-block w-fit">
-              {user.role}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <p className="font-medium">Welcome</p>
-            <p className="text-sm text-muted-foreground">Please sign in</p>
-          </div>
-        )}
-      </div>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {mainNavigationItems.map((item) => (
-            <li key={item.name}>
-              <Link
-                to={item.href}
-                className="block px-3 py-2 rounded-md hover:bg-secondary transition-colors"
-                onClick={() => isMobile && setSidebarOpen(false)}
-              >
-                {item.name}
-              </Link>
-            </li>
-          ))}
-          
-          {user && unreadAnnouncements > 0 && (
-            <li>
-              <Link
-                to="/announcements"
-                className="block px-3 py-2 rounded-md hover:bg-secondary transition-colors bg-primary/10 font-medium"
-                onClick={() => isMobile && setSidebarOpen(false)}
-              >
-                Announcements
-                <span className="ml-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
-                  {unreadAnnouncements}
-                </span>
-              </Link>
-            </li>
-          )}
-        </ul>
-      </nav>
-      <div className="p-4 border-t border-border">
-        {user ? (
-          <Button variant="outline" className="w-full" onClick={handleSignOut}>
-            <LucideLogOut className="mr-2 h-4 w-4" />
-            Sign out
-          </Button>
-        ) : (
-          <Button variant="outline" className="w-full" onClick={() => navigate('/login')}>
-            <LucideUser className="mr-2 h-4 w-4" />
-            Sign in
-          </Button>
-        )}
-      </div>
-    </div>
-  );
+  const isAdmin = user && user.role === 'Admin';
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isMobile && (
-              <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <LucidePanelLeft className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="p-0">
-                  {navigationContent}
-                </SheetContent>
-              </Sheet>
-            )}
-            <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-              <LucideCarFront className="h-6 w-6" />
-              <span>Bay Manager</span>
+    <div className="flex h-screen bg-background text-foreground">
+      {/* Sidebar */}
+      {isSidebarOpen && (
+        <div className="w-64 border-r flex-shrink-0 border-r-border bg-secondary">
+          <div className="p-4">
+            <Link to="/" className="flex items-center text-lg font-semibold">
+              Parking App
             </Link>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleThemeToggle}
-              title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            >
-              {theme === 'dark' ? (
-                <LucideSun className="h-5 w-5" />
-              ) : (
-                <LucideMoon className="h-5 w-5" />
+          <nav className="flex flex-col px-3 py-6">
+            <Link
+              to="/"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                location.pathname === "/" && "bg-accent text-primary font-medium"
               )}
-            </Button>
-          </div>
-        </div>
-      </header>
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              <span>Dashboard</span>
+            </Link>
+            
+            <Link
+              to="/users"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                location.pathname === "/users" && "bg-accent text-primary font-medium"
+              )}
+            >
+              <Users className="h-5 w-5" />
+              <span>Users</span>
+            </Link>
+            
+            <Link
+              to="/bays"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                location.pathname === "/bays" && "bg-accent text-primary font-medium"
+              )}
+            >
+              <ParkingSquare className="h-5 w-5" />
+              <span>Parking Bays</span>
+            </Link>
+            
+            <Link
+              to="/my-bay"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                location.pathname === "/my-bay" && "bg-accent text-primary font-medium"
+              )}
+            >
+              <ParkingSquare className="h-5 w-5" />
+              <span>My Bay</span>
+            </Link>
 
-      <div className="flex-1 flex">
-        {!isMobile && (
-          <aside className="h-[calc(100vh-65px)] border-r border-border overflow-y-auto sticky top-[65px]">
-            {navigationContent}
-          </aside>
-        )}
-        <main className="flex-1 overflow-y-auto p-4">
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                  location.pathname === "/admin" && "bg-accent text-primary font-medium"
+                )}
+              >
+                <UserCog className="h-5 w-5" />
+                <span>Admin Settings</span>
+              </Link>
+            )}
+          </nav>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="flex flex-col flex-grow">
+        {/* Header */}
+        <header className="flex items-center justify-between h-16 px-4 border-b border-b-border">
+          <Button variant="ghost" onClick={toggleSidebar}>
+            {isSidebarOpen ? 'Close Menu' : 'Open Menu'}
+          </Button>
+          
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={toggleTheme}>
+              {theme === "light" ? <MoonStar className="h-5 w-5" /> : <SunMedium className="h-5 w-5" />}
+            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src="https://github.com/shadcn.png" alt={user?.name || "Avatar"} />
+                    <AvatarFallback>{user?.name?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">{user?.name}</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user?.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-grow p-6 overflow-y-auto">
           {children}
         </main>
       </div>

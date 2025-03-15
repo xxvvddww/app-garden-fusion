@@ -6,12 +6,14 @@ import { Bay } from '@/types';
 
 interface BayCardProps {
   bay: Bay;
+  onClick?: (bay: Bay) => void;
 }
 
-const BayCard = ({ bay }: BayCardProps) => {
+const BayCard = ({ bay, onClick }: BayCardProps) => {
   return (
     <Card 
-      className="bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 hover:shadow-[0_0_15px_rgba(0,255,128,0.15)]"
+      className="bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 hover:shadow-[0_0_15px_rgba(0,255,128,0.15)] cursor-pointer"
+      onClick={() => onClick && onClick(bay)}
     >
       <CardContent className="flex flex-col items-center justify-center p-3 h-full">
         <div className="rounded-full bg-[#162240] p-2 mb-2">
