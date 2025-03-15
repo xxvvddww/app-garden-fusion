@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ShieldCheck, ParkingSquare, Users, CalendarClock, Settings } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -93,7 +94,61 @@ const Dashboard = () => {
   
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        {user?.role === 'Admin' && (
+          <Button onClick={() => navigate('/admin')}>
+            <Settings className="mr-2 h-4 w-4" />
+            Admin Settings
+          </Button>
+        )}
+      </div>
+      
+      {/* Admin Quick Stats - Only shown to admins */}
+      {user?.role === 'Admin' && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardHeader>
+            <div className="flex items-center">
+              <ShieldCheck className="mr-2 h-5 w-5 text-primary" />
+              <CardTitle>Admin Quick Stats</CardTitle>
+            </div>
+            <CardDescription>Overview of system status</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="flex items-center gap-2">
+                <ParkingSquare className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Available Bays</p>
+                  <p className="text-2xl font-bold">{bays.filter(b => b.status === 'Available').length}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Users className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Active Users</p>
+                  <p className="text-2xl font-bold">-</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Today's Claims</p>
+                  <p className="text-2xl font-bold">{claims.length}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <Button variant="outline" className="w-full" onClick={() => navigate('/admin')}>
+                Go to Admin Dashboard
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {/* Announcements Alert */}
       {unreadAnnouncements.length > 0 && (

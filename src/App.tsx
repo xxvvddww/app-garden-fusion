@@ -13,6 +13,7 @@ import Dashboard from "@/pages/Dashboard";
 import Users from "@/pages/Users";
 import Bays from "@/pages/Bays";
 import MyBay from "@/pages/MyBay";
+import Admin from "@/pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,7 +74,16 @@ const App = () => (
                   }
                 />
                 
-                {/* Add more routes here */}
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute requiredRole="Admin">
+                      <MainLayout>
+                        <Admin />
+                      </MainLayout>
+                    </ProtectedRoute>
+                  }
+                />
                 
                 <Route path="*" element={<NotFound />} />
               </Routes>

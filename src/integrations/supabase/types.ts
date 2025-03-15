@@ -9,6 +9,142 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      announcements: {
+        Row: {
+          announcement_id: string
+          content: string
+          created_by: string
+          created_time: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          announcement_id?: string
+          content: string
+          created_by: string
+          created_time?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          announcement_id?: string
+          content?: string
+          created_by?: string
+          created_time?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      bays: {
+        Row: {
+          bay_id: string
+          bay_number: string
+          created_by: string | null
+          created_date: string | null
+          location: string
+          status: string
+          type: string | null
+          updated_by: string | null
+          updated_date: string | null
+        }
+        Insert: {
+          bay_id?: string
+          bay_number: string
+          created_by?: string | null
+          created_date?: string | null
+          location: string
+          status?: string
+          type?: string | null
+          updated_by?: string | null
+          updated_date?: string | null
+        }
+        Update: {
+          bay_id?: string
+          bay_number?: string
+          created_by?: string | null
+          created_date?: string | null
+          location?: string
+          status?: string
+          type?: string | null
+          updated_by?: string | null
+          updated_date?: string | null
+        }
+        Relationships: []
+      }
+      daily_claims: {
+        Row: {
+          bay_id: string
+          claim_date: string
+          claim_id: string
+          created_by: string | null
+          created_date: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          bay_id: string
+          claim_date: string
+          claim_id?: string
+          created_by?: string | null
+          created_date?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          bay_id?: string
+          claim_date?: string
+          claim_id?: string
+          created_by?: string | null
+          created_date?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_claims_bay_id_fkey"
+            columns: ["bay_id"]
+            isOneToOne: false
+            referencedRelation: "bays"
+            referencedColumns: ["bay_id"]
+          },
+        ]
+      }
+      permanent_assignments: {
+        Row: {
+          assignment_id: string
+          bay_id: string
+          created_by: string | null
+          created_date: string | null
+          day_of_week: string
+          user_id: string
+        }
+        Insert: {
+          assignment_id?: string
+          bay_id: string
+          created_by?: string | null
+          created_date?: string | null
+          day_of_week: string
+          user_id: string
+        }
+        Update: {
+          assignment_id?: string
+          bay_id?: string
+          created_by?: string | null
+          created_date?: string | null
+          day_of_week?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permanent_assignments_bay_id_fkey"
+            columns: ["bay_id"]
+            isOneToOne: false
+            referencedRelation: "bays"
+            referencedColumns: ["bay_id"]
+          },
+        ]
+      }
       users: {
         Row: {
           created_by: string | null
@@ -56,7 +192,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_unread_announcements_for_user: {
+        Args: {
+          user_id_param: string
+        }
+        Returns: {
+          announcement_id: string
+          content: string
+          created_by: string
+          created_time: string | null
+          status: string
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
