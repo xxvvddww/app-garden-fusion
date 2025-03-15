@@ -7,11 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Users = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [newStatus, setNewStatus] = useState<string>('');
+  const [newRole, setNewRole] = useState<string>('');
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -36,6 +46,54 @@ const Users = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUserClick = (user: User) => {
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Moderator') return;
+    
+    setSelectedUser(user);
+    setNewStatus(user.status);
+    setNewRole(user.role);
+    setUpdateDialogOpen(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      setUpdating(true);
+      
+      // Only Admin can change roles
+      const updateData: { status: string; role?: string } = { status: newStatus };
+      if (currentUser?.role === 'Admin') {
+        updateData.role = newRole;
+      }
+      
+      const { error } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('user_id', selectedUser.user_id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Success',
+        description: 'User has been updated successfully',
+      });
+      
+      // Refresh users list
+      fetchUsers();
+      setUpdateDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update user',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -91,7 +149,14 @@ const Users = () => {
                       user.status.toLowerCase() === tab.toLowerCase()
                     )
                     .map(user => (
-                      <div key={user.user_id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg">
+                      <div 
+                        key={user.user_id} 
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg ${
+                          (currentUser?.role === 'Admin' || currentUser?.role === 'Moderator') ? 
+                          'cursor-pointer hover:bg-slate-800' : ''
+                        }`}
+                        onClick={() => handleUserClick(user)}
+                      >
                         <div className="mb-2 sm:mb-0">
                           <h3 className="font-medium">{user.name}</h3>
                           <p className="text-sm text-muted-foreground">{user.email}</p>
@@ -117,6 +182,55 @@ const Users = () => {
           </TabsContent>
         ))}
       </Tabs>
+      
+      {/* User Update Dialog */}
+      <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Update User</DialogTitle>
+            <DialogDescription>
+              {selectedUser?.name} ({selectedUser?.email})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Locked">Locked</SelectItem>
+                  <SelectItem value="Suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {currentUser?.role === 'Admin' && (
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Role</label>
+                <Select value={newRole} onValueChange={setNewRole}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Admin">Admin</SelectItem>
+                    <SelectItem value="Moderator">Moderator</SelectItem>
+                    <SelectItem value="User">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpdateDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateUser} disabled={updating}>
+              {updating ? 'Updating...' : 'Update User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

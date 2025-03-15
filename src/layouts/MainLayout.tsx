@@ -1,3 +1,4 @@
+
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -86,8 +87,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       label: "Users"
     });
   }
-
-  console.log("Current user role:", user?.role, "Is admin?", isAdmin);
 
   return (
     <div className="flex flex-col h-screen bg-background">
