@@ -6,10 +6,7 @@ import { cn } from '@/lib/utils';
 import { 
   SunMedium, 
   MoonStar, 
-  Users, 
-  ParkingSquare, 
-  LogOut,
-  UserCog
+  LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { PermanentAssignment } from '@/types';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -67,15 +63,14 @@ const MainLayout = ({ children }: MainLayoutProps) => {
 
   // Base navigation items
   const navigationItems = [
-    { path: "/bays", label: "Parking Bays", icon: <ParkingSquare className="h-4 w-4" /> },
+    { path: "/bays", label: "Bays" },
   ];
   
   // Add My Bay option only if user has permanent bay assignments
   if (hasAssignedBay) {
     navigationItems.push({ 
       path: "/my-bay", 
-      label: "My Bay", 
-      icon: <ParkingSquare className="h-4 w-4" /> 
+      label: "My Bay"
     });
   }
 
@@ -84,21 +79,18 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     // Add Users management for Admin at beginning
     navigationItems.unshift({ 
       path: "/users", 
-      label: "Users", 
-      icon: <Users className="h-4 w-4" /> 
+      label: "Users"
     });
     
     // Add Admin settings after My Bay (if exists) or after Parking Bays if no My Bay
     navigationItems.push({ 
       path: "/admin", 
-      label: "Admin Settings", 
-      icon: <UserCog className="h-4 w-4" /> 
+      label: "Admin"
     });
   } else if (user && user.role === 'Moderator') {
     navigationItems.unshift({ 
       path: "/users", 
-      label: "Users", 
-      icon: <Users className="h-4 w-4" /> 
+      label: "Users"
     });
   }
 
@@ -171,7 +163,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                     : "text-slate-400 hover:text-white border-b-2 border-transparent"
                 )}
               >
-                <span className="mr-2">{item.icon}</span>
                 {item.label}
               </Link>
             ))}
