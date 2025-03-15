@@ -79,6 +79,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     });
   }
 
+  // Add Admin options for admins
   if (isAdmin) {
     // Add Users management for Admin at beginning
     navigationItems.unshift({ 
@@ -100,6 +101,9 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       icon: <Users className="h-4 w-4" /> 
     });
   }
+
+  // Debug log to check user role
+  console.log("Current user role:", user?.role, "Is admin?", isAdmin);
 
   return (
     <div className="flex flex-col h-screen bg-background">
