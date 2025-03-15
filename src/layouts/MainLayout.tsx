@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { 
   SunMedium, 
   MoonStar, 
-  LayoutDashboard, 
   Users, 
   ParkingSquare, 
   LogOut,
@@ -40,17 +39,27 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   };
 
   const navigationItems = [
-    { path: "/", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
-    { path: "/users", label: "Users", icon: <Users className="h-4 w-4" /> },
     { path: "/bays", label: "Parking Bays", icon: <ParkingSquare className="h-4 w-4" /> },
     { path: "/my-bay", label: "My Bay", icon: <ParkingSquare className="h-4 w-4" /> },
   ];
 
   if (isAdmin) {
+    navigationItems.unshift({ 
+      path: "/users", 
+      label: "Users", 
+      icon: <Users className="h-4 w-4" /> 
+    });
+    
     navigationItems.push({ 
       path: "/admin", 
       label: "Admin Settings", 
       icon: <UserCog className="h-4 w-4" /> 
+    });
+  } else if (user && user.role === 'Moderator') {
+    navigationItems.unshift({ 
+      path: "/users", 
+      label: "Users", 
+      icon: <Users className="h-4 w-4" /> 
     });
   }
 
@@ -59,7 +68,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       {/* App Header */}
       <header className="bg-slate-900 text-white py-2 px-4 flex items-center justify-between">
         <div className="flex items-center">
-          <Link to="/" className="text-lg font-bold mr-6">
+          <Link to="/my-bay" className="text-lg font-bold mr-6">
             Parking App
           </Link>
         </div>
