@@ -21,6 +21,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { PermanentAssignment } from '@/types';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -32,24 +35,59 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = user && user.role === 'Admin';
+  const [hasAssignedBay, setHasAssignedBay] = useState(false);
+  
+  useEffect(() => {
+    // Check if user has any permanent bay assignments
+    const checkUserAssignments = async () => {
+      if (user) {
+        try {
+          const { data, error } = await supabase
+            .from('permanent_assignments')
+            .select('*')
+            .eq('user_id', user.user_id)
+            .limit(1);
+            
+          if (error) throw error;
+          setHasAssignedBay(data && data.length > 0);
+        } catch (error) {
+          console.error('Error checking user bay assignments:', error);
+          setHasAssignedBay(false);
+        }
+      }
+    };
+    
+    checkUserAssignments();
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
   };
 
+  // Base navigation items
   const navigationItems = [
     { path: "/bays", label: "Parking Bays", icon: <ParkingSquare className="h-4 w-4" /> },
-    { path: "/my-bay", label: "My Bay", icon: <ParkingSquare className="h-4 w-4" /> },
   ];
+  
+  // Add My Bay option only if user has permanent bay assignments
+  if (hasAssignedBay) {
+    navigationItems.push({ 
+      path: "/my-bay", 
+      label: "My Bay", 
+      icon: <ParkingSquare className="h-4 w-4" /> 
+    });
+  }
 
   if (isAdmin) {
+    // Add Users management for Admin at beginning
     navigationItems.unshift({ 
       path: "/users", 
       label: "Users", 
       icon: <Users className="h-4 w-4" /> 
     });
     
+    // Add Admin settings after My Bay (if exists) or after Parking Bays if no My Bay
     navigationItems.push({ 
       path: "/admin", 
       label: "Admin Settings", 
@@ -68,7 +106,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       {/* App Header */}
       <header className="bg-slate-900 text-white py-2 px-4 flex items-center justify-between">
         <div className="flex items-center">
-          <Link to="/my-bay" className="text-lg font-bold mr-6">
+          <Link to="/bays" className="text-lg font-bold mr-6">
             Parking App
           </Link>
         </div>
