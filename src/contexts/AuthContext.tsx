@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      // Using 'any' for now to bypass the type issues
       const { data, error } = await supabase
         .from('users')
         .select('*')
