@@ -48,12 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      // Using 'any' for now to bypass the type issues
+      // Removed the .single() method which was causing the error
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('user_id', userId)
-        .single();
+        .eq('user_id', userId);
 
       if (error) {
         toast({
@@ -62,8 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           variant: "destructive",
         });
         console.error('Error fetching user profile:', error);
-      } else if (data) {
-        setUser(data);
+      } else if (data && data.length > 0) {
+        // Take the first row if multiple rows are returned
+        setUser(data[0] as User);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
