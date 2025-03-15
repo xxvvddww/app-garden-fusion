@@ -16,7 +16,7 @@ const MainLayout = ({ children }: { children: ReactNode }) => {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
 
