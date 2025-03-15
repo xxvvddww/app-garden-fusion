@@ -22,8 +22,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log("AuthProvider initialized");
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session:", session);
       setSession(session);
       if (session) {
         fetchUserProfile(session.user.id);
@@ -34,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("Auth state changed:", _event, session);
       setSession(session);
       if (session) {
         fetchUserProfile(session.user.id);
@@ -48,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log("Fetching user profile for:", userId);
       // Removed the .single() method which was causing the error
       const { data, error } = await supabase
         .from('users')
@@ -61,23 +66,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           variant: "destructive",
         });
         console.error('Error fetching user profile:', error);
+        setLoading(false);
       } else if (data && data.length > 0) {
         // Take the first row if multiple rows are returned
+        console.log("User profile fetched:", data[0]);
         setUser(data[0] as User);
+        setLoading(false);
+      } else {
+        console.log("No user profile found, setting loading to false");
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
-    } finally {
       setLoading(false);
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log("Signing in with email:", email);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
+        console.error("Sign in error:", error.message);
         return { error: error.message };
       }
+      console.log("Sign in successful");
       return { error: null };
     } catch (error) {
       console.error('Sign in error:', error);

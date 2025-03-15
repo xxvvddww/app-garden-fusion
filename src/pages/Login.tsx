@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -34,8 +35,11 @@ const Login = () => {
     },
   });
 
+  // Effect to redirect user when authentication state changes
   useEffect(() => {
+    console.log("Auth state changed:", { user, loading });
     if (user && !loading) {
+      console.log("Redirecting to home page");
       navigate('/', { replace: true });
     }
   }, [user, loading, navigate]);
@@ -65,8 +69,9 @@ const Login = () => {
     setAuthMode(authMode === 'login' ? 'signup' : 'login');
   };
 
+  // Direct redirect if already logged in
   if (user && !loading) {
-    console.log("User is logged in, redirecting to home page", user);
+    console.log("User is logged in, redirecting immediately", user);
     return <Navigate to="/" replace />;
   }
 
