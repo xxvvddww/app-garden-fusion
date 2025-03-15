@@ -1,4 +1,3 @@
-
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -34,7 +33,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   const [hasAssignedBay, setHasAssignedBay] = useState(false);
   
   useEffect(() => {
-    // Check if user has any permanent bay assignments
     const checkUserAssignments = async () => {
       if (user) {
         try {
@@ -61,12 +59,10 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     navigate('/login');
   };
 
-  // Base navigation items
   const navigationItems = [
     { path: "/bays", label: "Bays" },
   ];
   
-  // Add My Bay option only if user has permanent bay assignments
   if (hasAssignedBay) {
     navigationItems.push({ 
       path: "/my-bay", 
@@ -74,15 +70,12 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     });
   }
 
-  // Add Admin options for admins
   if (isAdmin) {
-    // Add Users management for Admin at beginning
     navigationItems.unshift({ 
       path: "/users", 
       label: "Users"
     });
     
-    // Add Admin settings after My Bay (if exists) or after Parking Bays if no My Bay
     navigationItems.push({ 
       path: "/admin", 
       label: "Admin"
@@ -94,12 +87,10 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     });
   }
 
-  // Debug log to check user role
   console.log("Current user role:", user?.role, "Is admin?", isAdmin);
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* App Header */}
       <header className="bg-slate-900 text-white py-2 px-4 flex items-center justify-between">
         <div className="flex items-center">
           <Link to="/bays" className="text-lg font-bold mr-6">
@@ -148,7 +139,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         </div>
       </header>
 
-      {/* Navigation Bar */}
       <div className="bg-slate-950 text-white border-b border-slate-800">
         <div className="container mx-auto px-4">
           <nav className="flex">
@@ -170,7 +160,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         </div>
       </div>
 
-      {/* Content */}
       <main className="flex-grow bg-slate-950 text-white overflow-y-auto p-6">
         {children}
       </main>

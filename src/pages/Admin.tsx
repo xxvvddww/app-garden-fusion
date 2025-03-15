@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { 
   UserCog, 
   ParkingSquare, 
@@ -19,6 +20,7 @@ import {
 
 const Admin = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     userCount: 0,
@@ -79,6 +81,17 @@ const Admin = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Navigation handlers
+  const handleNavigateToUsers = () => navigate('/users');
+  const handleNavigateToBays = () => navigate('/bays');
+  const handleNavigateToAssignments = () => {
+    // Create an assignments page in the future
+    toast({
+      title: "Coming Soon",
+      description: "Assignment Management page is under development.",
+    });
   };
 
   if (!user || user.role !== 'Admin') {
@@ -168,19 +181,15 @@ const Admin = () => {
             <CardDescription>Manage users, bays, and assignments</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-between" asChild>
-              <a href="/users">
-                <span>User Management</span>
-                <ChevronRight className="h-4 w-4" />
-              </a>
+            <Button variant="outline" className="w-full justify-between" onClick={handleNavigateToUsers}>
+              <span>User Management</span>
+              <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" className="w-full justify-between" asChild>
-              <a href="/bays">
-                <span>Bay Management</span>
-                <ChevronRight className="h-4 w-4" />
-              </a>
+            <Button variant="outline" className="w-full justify-between" onClick={handleNavigateToBays}>
+              <span>Bay Management</span>
+              <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" className="w-full justify-between">
+            <Button variant="outline" className="w-full justify-between" onClick={handleNavigateToAssignments}>
               <span>Assignment Management</span>
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -193,11 +202,11 @@ const Admin = () => {
             <CardDescription>Create announcements and send notifications</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-between">
+            <Button variant="outline" className="w-full justify-between" onClick={() => toast({ title: "Coming Soon", description: "Announcements feature is under development." })}>
               <span>Create Announcement</span>
               <MegaphoneIcon className="h-4 w-4" />
             </Button>
-            <Button variant="outline" className="w-full justify-between">
+            <Button variant="outline" className="w-full justify-between" onClick={() => toast({ title: "Coming Soon", description: "Activity Logs feature is under development." })}>
               <span>View Activity Logs</span>
               <BookOpenText className="h-4 w-4" />
             </Button>
