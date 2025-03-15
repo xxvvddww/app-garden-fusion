@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -21,7 +20,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  const { user, loading, signIn } = useAuth();
+  const { user, session, loading, signIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,6 +33,12 @@ const Login = () => {
       password: '',
     },
   });
+
+  useEffect(() => {
+    if (user && !loading) {
+      navigate('/', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
   const onSubmit = async (values: LoginFormValues) => {
     setIsSubmitting(true);
@@ -50,7 +55,6 @@ const Login = () => {
           title: 'Welcome back',
           description: 'You have been signed in successfully.',
         });
-        navigate('/');
       }
     } finally {
       setIsSubmitting(false);
@@ -61,9 +65,9 @@ const Login = () => {
     setAuthMode(authMode === 'login' ? 'signup' : 'login');
   };
 
-  // Redirect if user is already logged in
   if (user && !loading) {
-    return <Navigate to="/" />;
+    console.log("User is logged in, redirecting to home page", user);
+    return <Navigate to="/" replace />;
   }
 
   return (
