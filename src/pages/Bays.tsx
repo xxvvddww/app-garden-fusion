@@ -3,11 +3,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import BayCard from '@/components/BayCard';
 
 const Bays = () => {
   const [bays, setBays] = useState<Bay[]>([]);
@@ -44,8 +43,10 @@ const Bays = () => {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-64" />
-        <div className="grid gap-6">
-          <Skeleton className="h-[400px] w-full" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-[180px] w-full" />
+          ))}
         </div>
       </div>
     );
@@ -56,7 +57,7 @@ const Bays = () => {
       <h1 className="text-3xl font-bold">Parking Bays</h1>
       
       <Tabs defaultValue="all">
-        <TabsList>
+        <TabsList className="mb-6">
           <TabsTrigger value="all">All Bays</TabsTrigger>
           <TabsTrigger value="available">Available</TabsTrigger>
           <TabsTrigger value="reserved">Reserved</TabsTrigger>
@@ -64,66 +65,35 @@ const Bays = () => {
         </TabsList>
         
         {['all', 'available', 'reserved', 'maintenance'].map((tab) => (
-          <TabsContent key={tab} value={tab}>
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {tab === 'all' ? 'All Bays' : `${tab.charAt(0).toUpperCase() + tab.slice(1)} Bays`}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {bays.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No bays have been set up yet.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {bays
-                      .filter(bay => 
-                        tab === 'all' || 
-                        (tab === 'available' && bay.status === 'Available') ||
-                        (tab === 'reserved' && bay.status === 'Reserved') ||
-                        (tab === 'maintenance' && bay.status === 'Maintenance')
-                      )
-                      .map(bay => (
-                        <div key={bay.bay_id} className="border rounded-lg p-4 flex flex-col">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium">Bay {bay.bay_number}</h3>
-                            <Badge 
-                              variant={bay.status === 'Available' ? 'default' : 'secondary'}
-                              className={bay.status === 'Available' ? 'bg-green-500' : bay.status === 'Maintenance' ? 'bg-orange-500' : ''}
-                            >
-                              {bay.status}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">{bay.location}</p>
-                          <div className="mt-auto pt-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="w-full"
-                              disabled={bay.status !== 'Available'}
-                            >
-                              {bay.status === 'Available' ? 'Request Bay' : 'Unavailable'}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    
-                    {bays.filter(bay => 
-                      tab === 'all' || 
-                      (tab === 'available' && bay.status === 'Available') ||
-                      (tab === 'reserved' && bay.status === 'Reserved') ||
-                      (tab === 'maintenance' && bay.status === 'Maintenance')
-                    ).length === 0 && (
-                      <p className="text-center text-muted-foreground py-8 col-span-full">
+          <TabsContent key={tab} value={tab} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {bays
+                .filter(bay => 
+                  tab === 'all' || 
+                  (tab === 'available' && bay.status === 'Available') ||
+                  (tab === 'reserved' && bay.status === 'Reserved') ||
+                  (tab === 'maintenance' && bay.status === 'Maintenance')
+                )
+                .map(bay => <BayCard key={bay.bay_id} bay={bay} />)
+              }
+              
+              {bays.filter(bay => 
+                tab === 'all' || 
+                (tab === 'available' && bay.status === 'Available') ||
+                (tab === 'reserved' && bay.status === 'Reserved') ||
+                (tab === 'maintenance' && bay.status === 'Maintenance')
+              ).length === 0 && (
+                <div className="col-span-full">
+                  <Card className="bg-[#0F1624] border-[#1E2A45] text-white">
+                    <CardContent className="p-6">
+                      <p className="text-center text-gray-400 py-8">
                         No {tab === 'all' ? 'bays' : `${tab} bays`} found
                       </p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
           </TabsContent>
         ))}
       </Tabs>
