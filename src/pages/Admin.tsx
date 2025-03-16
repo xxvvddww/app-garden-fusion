@@ -317,13 +317,16 @@ const Admin = () => {
       
       // Remove deselected assignments if needed
       if (removedDays.length > 0) {
+        // Changed to use a more precise deletion approach for each day
         for (const day of removedDays) {
           const { error: deleteError } = await supabase
             .from('permanent_assignments')
             .delete()
-            .eq('user_id', selectedUser)
-            .eq('bay_id', selectedBay)
-            .eq('day_of_week', day);
+            .match({
+              'user_id': selectedUser,
+              'bay_id': selectedBay,
+              'day_of_week': day
+            });
           
           if (deleteError) {
             console.error(`Error removing assignment for ${day}:`, deleteError);
@@ -331,6 +334,9 @@ const Admin = () => {
           }
         }
       }
+      
+      // Refetch to ensure UI is in sync with database
+      await fetchExistingAssignments();
       
       toast({
         title: 'Success',
