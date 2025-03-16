@@ -89,6 +89,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
             // Check if the deletion was successful based on response
             if (!response.ok) {
               console.error(`DELETE operation failed with status ${response.status}: ${JSON.stringify(responseData)}`);
+              if (response.status === 403) {
+                console.error('PERMISSION DENIED: Check that you have the correct RLS policies in place!');
+              }
             } else if (responseData?.count !== undefined) {
               console.log(`DELETE operation succeeded, rows affected: ${responseData.count}`);
               if (responseData.count === 0) {

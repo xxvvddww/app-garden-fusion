@@ -277,14 +277,12 @@ const Admin = () => {
         return;
       }
       
-      // Handle deletions first with individual deletion for each day
       if (removedDays.length > 0) {
         console.log('Starting deletion process for days:', removedDays);
         
         for (const day of removedDays) {
           console.log(`Attempting to delete assignment: user_id=${selectedUser}, bay_id=${selectedBay}, day_of_week=${day}`);
           
-          // First, find the assignment_id for this specific assignment
           const { data: assignmentToDelete, error: findError } = await supabase
             .from('permanent_assignments')
             .select('assignment_id')
@@ -310,25 +308,28 @@ const Admin = () => {
           
           console.log(`Found assignment to delete:`, assignmentToDelete);
           
-          // Now delete the specific assignment using its assignment_id
-          const { error: deleteError } = await supabase
+          const { error: deleteError, status, statusText } = await supabase
             .from('permanent_assignments')
             .delete()
             .eq('assignment_id', assignmentToDelete.assignment_id);
           
           if (deleteError) {
             console.error(`Failed to delete assignment for ${day}:`, deleteError);
+            console.error(`Delete response status: ${status} ${statusText}`);
             toast({
               title: 'Error',
               description: `Failed to delete assignment for ${day}: ${deleteError.message}`,
               variant: 'destructive',
             });
           } else {
-            console.log(`Successfully deleted assignment for ${day}`);
+            console.log(`Successfully deleted assignment for ${day}, status: ${status}`);
+            toast({
+              title: 'Success',
+              description: `Successfully removed assignment for ${day}`,
+            });
           }
         }
         
-        // Double-check that the removals worked
         const { data: remainingAssignments, error: checkError } = await supabase
           .from('permanent_assignments')
           .select('*')
@@ -355,7 +356,6 @@ const Admin = () => {
         }
       }
       
-      // Handle insertions for new assignments
       const daysToAssign = Object.entries(selectedDays)
         .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
         .map(([day]) => day);
