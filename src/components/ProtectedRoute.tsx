@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { supabase, refreshSession } from '@/integrations/supabase/client';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -10,11 +11,13 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
-  const { user, session, loading } = useAuth();
+  const { user, session, loading, refreshUserData } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   // Track whether initial auth check has completed
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
 
   useEffect(() => {
     console.log("ProtectedRoute - auth state:", { 
@@ -22,21 +25,63 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       hasSession: !!session, 
       loading, 
       currentPath: location.pathname,
-      hasCheckedAuth
+      hasCheckedAuth,
+      refreshAttempts
     });
 
     // Set hasCheckedAuth to true once loading is complete
     if (!loading && !hasCheckedAuth) {
       setHasCheckedAuth(true);
     }
-  }, [user, session, loading, location, hasCheckedAuth]);
+  }, [user, session, loading, location, hasCheckedAuth, refreshAttempts]);
+
+  // Force a session refresh on component mount
+  useEffect(() => {
+    const trySessionRefresh = async () => {
+      if (!user && !loading && refreshAttempts < 3) {
+        setIsRefreshing(true);
+        try {
+          console.log(`Attempting session refresh (attempt ${refreshAttempts + 1})`);
+          await refreshSession();
+          // After refreshing, update user data in Auth context
+          if (refreshUserData) {
+            await refreshUserData();
+          }
+        } catch (error) {
+          console.error("Error during forced session refresh:", error);
+        } finally {
+          setIsRefreshing(false);
+          setRefreshAttempts(prev => prev + 1);
+        }
+      }
+    };
+    
+    if (hasCheckedAuth && !user && !loading) {
+      trySessionRefresh();
+    }
+  }, [hasCheckedAuth, user, loading, refreshAttempts, refreshUserData]);
 
   // When returning from background on mobile, this helps re-validate auth status
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && hasCheckedAuth) {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
         console.log('App visible, rechecking auth state in ProtectedRoute');
-        if (!session || !user) {
+        
+        // First check if we already have a session
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          console.log("Session found on visibility change:", { 
+            userId: data.session.user.id,
+            hasAccessToken: !!data.session.access_token 
+          });
+          
+          // If we have a session but no user data, force a refresh
+          if (!user && refreshUserData) {
+            console.log("We have a session but no user data, refreshing user data");
+            await refreshUserData();
+          }
+        } else if (!user) {
+          console.log("No session found on visibility change, redirecting to login");
           navigate('/login', { replace: true });
         }
       }
@@ -46,12 +91,16 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session, user, hasCheckedAuth, navigate]);
+  }, [session, user, navigate, refreshUserData]);
 
-  if (loading) {
+  // Show enhanced loading state when refreshing session
+  if (loading || isRefreshing) {
     return (
       <div className="container mx-auto p-4 space-y-4">
-        <Skeleton className="h-8 w-64" />
+        <div className="flex items-center space-x-2 mb-4">
+          <Skeleton className="h-8 w-8 rounded-full" />
+          <Skeleton className="h-8 w-64" />
+        </div>
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -59,10 +108,9 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     );
   }
 
-  // Check if the user is authenticated
+  // If after refresh attempts we still don't have a user, redirect to login
   if (!session || !user) {
-    console.log("User not authenticated, redirecting to login");
-    // Redirect to login if not authenticated
+    console.log("User not authenticated after refresh attempts, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

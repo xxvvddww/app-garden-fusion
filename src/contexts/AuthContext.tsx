@@ -1,4 +1,3 @@
-
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
@@ -18,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Use localStorage to improve mobile session restoration
 const STORAGE_KEY = 'parking-app-user-data';
+const LAST_AUTH_CHECK_KEY = 'parking-app-last-auth-check';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -37,83 +37,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(STORAGE_KEY);
     }
   }, [user]);
-
-  useEffect(() => {
-    console.log("AuthProvider initialized");
-    
-    const initAuth = async () => {
-      try {
-        // Get initial session
-        const { data: sessionData } = await supabase.auth.getSession();
-        console.log("Initial session fetched:", sessionData.session ? {
-          id: sessionData.session.user.id,
-          email: sessionData.session.user.email,
-          hasAccessToken: !!sessionData.session.access_token,
-          accessTokenPreview: sessionData.session.access_token ? 
-            sessionData.session.access_token.substring(0, 10) + '...' : 'none'
-        } : 'No session');
-        
-        setSession(sessionData.session);
-        
-        if (sessionData.session) {
-          await fetchUserProfile(sessionData.session.user.id);
-        } else {
-          setLoading(false);
-        }
-        
-        // Set up auth state change listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-          console.log("Auth state changed:", event, newSession ? {
-            id: newSession.user.id,
-            email: newSession.user.email,
-            hasAccessToken: !!newSession.access_token,
-            accessTokenPreview: newSession.access_token ? 
-              newSession.access_token.substring(0, 10) + '...' : 'none'
-          } : 'No session');
-          
-          setSession(newSession);
-          
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            if (newSession) {
-              await fetchUserProfile(newSession.user.id);
-            }
-          } else if (event === 'SIGNED_OUT') {
-            setUser(null);
-            setLoading(false);
-          }
-        });
-        
-        return () => {
-          subscription.unsubscribe();
-        };
-      } catch (error) {
-        console.error("Error in auth initialization:", error);
-        setLoading(false);
-      }
-    };
-    
-    initAuth();
-
-    // Add visibility change listener for better mobile browser session restoration
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('App became visible, refreshing auth state');
-        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-          if (currentSession && (!session || currentSession.access_token !== session.access_token)) {
-            console.log('Session updated on visibility change');
-            setSession(currentSession);
-            fetchUserProfile(currentSession.user.id);
-          }
-        });
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -179,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("User profile found:", existingUsers[0]);
         setUser(existingUsers[0] as User);
       }
+      
+      // Store timestamp of successful auth check
+      localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       toast({
@@ -190,6 +116,124 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    console.log("AuthProvider initialized");
+    
+    const initAuth = async () => {
+      try {
+        setLoading(true);
+        // Get initial session
+        const { data: sessionData } = await supabase.auth.getSession();
+        console.log("Initial session fetched:", sessionData.session ? {
+          id: sessionData.session.user.id,
+          email: sessionData.session.user.email,
+          hasAccessToken: !!sessionData.session.access_token,
+          accessTokenExpiresAt: sessionData.session.expires_at 
+            ? new Date(sessionData.session.expires_at * 1000).toISOString() 
+            : 'unknown'
+        } : 'No session');
+        
+        setSession(sessionData.session);
+        
+        if (sessionData.session) {
+          await fetchUserProfile(sessionData.session.user.id);
+        } else {
+          setLoading(false);
+        }
+        
+        // Set up auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+          console.log("Auth state changed:", event, newSession ? {
+            id: newSession.user.id,
+            email: newSession.user.email,
+            hasAccessToken: !!newSession.access_token,
+            accessTokenPreview: newSession.access_token ? 
+              newSession.access_token.substring(0, 10) + '...' : 'none'
+          } : 'No session');
+          
+          setSession(newSession);
+          
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (newSession) {
+              await fetchUserProfile(newSession.user.id);
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+            setLoading(false);
+            // Clear stored data on sign out
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(LAST_AUTH_CHECK_KEY);
+          }
+        });
+        
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error("Error in auth initialization:", error);
+        setLoading(false);
+      }
+    };
+    
+    initAuth();
+
+    // Add visibility change listener for better mobile browser session restoration
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        // Check when we last successfully verified auth
+        const lastAuthCheck = localStorage.getItem(LAST_AUTH_CHECK_KEY);
+        const now = Date.now();
+        const fiveMinutesAgo = now - (5 * 60 * 1000);
+        const shouldCheckAuth = !lastAuthCheck || parseInt(lastAuthCheck) < fiveMinutesAgo;
+        
+        console.log('App became visible, refreshing auth state', {
+          shouldCheckAuth,
+          lastCheck: lastAuthCheck ? new Date(parseInt(lastAuthCheck)).toISOString() : 'never'
+        });
+
+        if (shouldCheckAuth) {
+          try {
+            setLoading(true);
+            const { data } = await supabase.auth.getSession();
+            
+            // If we have a valid session
+            if (data.session) {
+              console.log('Valid session found on visibility change');
+              setSession(data.session);
+              
+              // Check if user data needs to be refreshed
+              if (!user || user.user_id !== data.session.user.id) {
+                await fetchUserProfile(data.session.user.id);
+              } else {
+                setLoading(false);
+              }
+              
+              // Update last auth check timestamp
+              localStorage.setItem(LAST_AUTH_CHECK_KEY, now.toString());
+            } else if (session) {
+              // We thought we had a session but it's invalid/expired
+              console.log('Session invalid on visibility change');
+              setSession(null);
+              setUser(null);
+              setLoading(false);
+            } else {
+              setLoading(false);
+            }
+          } catch (error) {
+            console.error('Error checking session on visibility change:', error);
+            setLoading(false);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [toast]);
 
   const refreshUserData = async () => {
     if (session) {
