@@ -6,6 +6,10 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://xkxaoyuxdxamhszltqgx.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhreGFveXV4ZHhhbWhzemx0cWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIwNTg4NjEsImV4cCI6MjA1NzYzNDg2MX0.easK7cjl-T9o31F1xV804WcFa8oDmaQI6YQLwt__xqc";
 
-// We're using 'any' as a temporary workaround for the type issues
-// Due to the restriction on modifying the types.ts file directly
-export const supabase = createClient<any>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Initialize the Supabase client with explicit type
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true
+  }
+});

@@ -144,7 +144,10 @@ const Admin = () => {
         .eq('day_of_week', dayOfWeek)
         .maybeSingle();
       
-      if (checkError) throw checkError;
+      if (checkError) {
+        console.error('Error checking existing assignment:', checkError);
+        throw checkError;
+      }
       
       if (existingAssignment) {
         toast({
@@ -152,8 +155,17 @@ const Admin = () => {
           description: 'This assignment already exists',
           variant: 'destructive',
         });
+        setAssignmentLoading(false);
         return;
       }
+      
+      // Log the values being sent
+      console.log('Creating assignment with values:', {
+        user_id: selectedUser,
+        bay_id: selectedBay,
+        day_of_week: dayOfWeek,
+        created_by: user?.user_id
+      });
       
       // Create new assignment
       const { error } = await supabase
@@ -165,7 +177,10 @@ const Admin = () => {
           created_by: user?.user_id
         });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating assignment:', error);
+        throw error;
+      }
       
       toast({
         title: 'Success',
@@ -180,11 +195,11 @@ const Admin = () => {
       setSelectedUser(null);
       setSelectedBay(null);
       setDayOfWeek(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating assignment:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create assignment',
+        description: `Failed to create assignment: ${error.message || 'Unknown error'}`,
         variant: 'destructive',
       });
     } finally {
