@@ -6,10 +6,82 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://xkxaoyuxdxamhszltqgx.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhreGFveXV4ZHhhbWhzemx0cWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIwNTg4NjEsImV4cCI6MjA1NzYzNDg2MX0.easK7cjl-T9o31F1xV804WcFa8oDmaQI6YQLwt__xqc";
 
-// Create a session key that includes device info to help with session restoration
-const SESSION_KEY = 'bay-management-auth-token';
-const SESSION_CACHE_KEY = 'bay-management-session-cache';
-const LAST_SESSION_REFRESH_KEY = 'bay-management-last-refresh';
+// Create cache keys with version numbers to force cache invalidation if needed
+const VERSION = '1';
+const SESSION_KEY = `bay-management-auth-token-v${VERSION}`;
+const SESSION_CACHE_KEY = `bay-management-session-cache-v${VERSION}`;
+const LAST_SESSION_REFRESH_KEY = `bay-management-last-refresh-v${VERSION}`;
+const FORCE_SESSION_RELOAD_KEY = `bay-management-force-reload-v${VERSION}`;
+
+// Modified debug helpers
+const enableDebug = true;
+const logDebug = (message: string, data?: any) => {
+  if (enableDebug) {
+    if (data) {
+      console.log(`[Supabase Client] ${message}`, data);
+    } else {
+      console.log(`[Supabase Client] ${message}`);
+    }
+  }
+};
+
+// Helper for safer localStorage access
+const safeLocalStorage = {
+  get: (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      console.error(`Error reading from localStorage for key ${key}:`, e);
+      return null;
+    }
+  },
+  set: (key: string, value: string): boolean => {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e) {
+      console.error(`Error writing to localStorage for key ${key}:`, e);
+      return false;
+    }
+  },
+  remove: (key: string): boolean => {
+    try {
+      localStorage.removeItem(key);
+      return true;
+    } catch (e) {
+      console.error(`Error removing from localStorage for key ${key}:`, e);
+      return false;
+    }
+  },
+  clear: (): boolean => {
+    try {
+      localStorage.clear();
+      return true;
+    } catch (e) {
+      console.error(`Error clearing localStorage:`, e);
+      return false;
+    }
+  }
+};
+
+// Clear stored data to force a clean session if requested
+const forcedReloadTime = safeLocalStorage.get(FORCE_SESSION_RELOAD_KEY);
+if (forcedReloadTime) {
+  const now = Date.now();
+  const reloadTime = parseInt(forcedReloadTime, 10);
+  const timeSinceReload = now - reloadTime;
+  
+  // Only clear the session if the forced reload was requested within the last 5 minutes
+  if (timeSinceReload < 5 * 60 * 1000) {
+    logDebug("Forced session reload detected, clearing cached data");
+    safeLocalStorage.remove(SESSION_KEY);
+    safeLocalStorage.remove(SESSION_CACHE_KEY);
+    safeLocalStorage.remove(LAST_SESSION_REFRESH_KEY);
+  }
+  
+  // Always clear the force reload flag
+  safeLocalStorage.remove(FORCE_SESSION_RELOAD_KEY);
+}
 
 // Initialize the Supabase client with explicit type and improved error handling
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -17,11 +89,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
     storageKey: SESSION_KEY,
-    debug: true,
+    debug: enableDebug,
     detectSessionInUrl: true
-  },
-  db: {
-    schema: 'public'
   },
   global: {
     headers: {
@@ -30,27 +99,27 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
       // Add custom logging for debugging database requests
       const urlString = typeof url === 'string' ? url : url.toString();
-      console.log(`Supabase request to: ${urlString}`);
+      logDebug(`Request to: ${urlString}`);
       
       if (options?.method) {
-        console.log(`Method: ${options.method}`);
+        logDebug(`Method: ${options.method}`);
       }
       
       // Enhanced logging for DELETE requests
       if (options?.method === 'DELETE') {
-        console.log(`DELETE Request URL: ${urlString}`);
+        logDebug(`DELETE Request URL: ${urlString}`);
         
         // Extract and log query parameters for DELETE requests
         try {
           const urlObj = new URL(urlString);
-          console.log('DELETE Query Params:', Object.fromEntries(urlObj.searchParams.entries()));
-          console.log('DELETE Headers:', options.headers);
+          logDebug('DELETE Query Params:', Object.fromEntries(urlObj.searchParams.entries()));
+          logDebug('DELETE Headers:', options.headers);
           
           // Log the specific table and filter being used in the delete operation
           const pathParts = urlObj.pathname.split('/');
           if (pathParts.length >= 4) {
             const tableName = pathParts[pathParts.length - 1];
-            console.log(`Attempting to delete from table: ${tableName}`);
+            logDebug(`Attempting to delete from table: ${tableName}`);
             
             // Extract filter conditions from query params
             const filters = [];
@@ -62,21 +131,21 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
             }
             
             if (filters.length > 0) {
-              console.log(`Filter conditions: ${filters.join(' AND ')}`);
+              logDebug(`Filter conditions: ${filters.join(' AND ')}`);
             } else {
               console.warn('WARNING: DELETE operation with no filter conditions detected!');
             }
           }
         } catch (e) {
-          console.log(`Error parsing DELETE URL: ${e}`);
+          logDebug(`Error parsing DELETE URL: ${e}`);
         }
       }
       
       if (options?.body) {
         try {
-          console.log(`Request body: ${JSON.stringify(JSON.parse(options.body as string), null, 2)}`);
+          logDebug(`Request body: ${JSON.stringify(JSON.parse(options.body as string), null, 2)}`);
         } catch (e) {
-          console.log(`Request body: ${options.body}`);
+          logDebug(`Request body: ${options.body}`);
         }
       }
       
@@ -86,11 +155,11 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
         
         try {
           const responseData = await clonedResponse.json();
-          console.log(`Supabase response status: ${response.status} ${response.statusText}`);
+          logDebug(`Response status: ${response.status} ${response.statusText}`);
           
           // Special handling for DELETE operations
           if (options?.method === 'DELETE') {
-            console.log(`DELETE response: ${JSON.stringify(responseData, null, 2)}`);
+            logDebug(`DELETE response: ${JSON.stringify(responseData, null, 2)}`);
             
             // Check if the deletion was successful based on response
             if (!response.ok) {
@@ -99,26 +168,26 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
                 console.error('PERMISSION DENIED: Check that you have the correct RLS policies in place!');
               }
             } else if (responseData?.count !== undefined) {
-              console.log(`DELETE operation succeeded, rows affected: ${responseData.count}`);
+              logDebug(`DELETE operation succeeded, rows affected: ${responseData.count}`);
               if (responseData.count === 0) {
                 console.warn('Warning: DELETE operation succeeded but no rows were affected!');
               }
             } else {
-              console.log(`DELETE operation response: ${JSON.stringify(responseData)}`);
+              logDebug(`DELETE operation response: ${JSON.stringify(responseData)}`);
             }
           } else {
-            console.log(`Supabase response: ${JSON.stringify(responseData, null, 2)}`);
+            logDebug(`Response: ${JSON.stringify(responseData)}`);
           }
         } catch (e) {
-          console.log(`Could not parse response as JSON: ${e}`);
-          console.log(`Response status: ${response.status} ${response.statusText}`);
+          logDebug(`Could not parse response as JSON: ${e}`);
+          logDebug(`Response status: ${response.status} ${response.statusText}`);
           
           // Try to at least log the text response
           try {
             const textResponse = await response.clone().text();
-            console.log(`Response text: ${textResponse}`);
+            logDebug(`Response text: ${textResponse}`);
           } catch (textError) {
-            console.log(`Could not get response text: ${textError}`);
+            logDebug(`Could not get response text: ${textError}`);
           }
         }
         
@@ -134,16 +203,16 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
 // Enhanced session refresh with throttling to avoid excessive calls
 export const refreshSession = async () => {
   try {
-    console.log("Attempting to refresh session");
+    logDebug("Attempting to refresh session");
     
     // Implement basic throttling - don't refresh more than once per 10 seconds
-    const lastRefresh = localStorage.getItem(LAST_SESSION_REFRESH_KEY);
+    const lastRefresh = safeLocalStorage.get(LAST_SESSION_REFRESH_KEY);
     const now = Date.now();
     
     if (lastRefresh) {
       const timeSinceLastRefresh = now - parseInt(lastRefresh);
       if (timeSinceLastRefresh < 10000) { // 10 seconds
-        console.log(`Skipping refresh, last refresh was ${timeSinceLastRefresh}ms ago`);
+        logDebug(`Skipping refresh, last refresh was ${timeSinceLastRefresh}ms ago`);
         
         // Try to get session directly if we're skipping the refresh
         const { data: sessionData } = await supabase.auth.getSession();
@@ -152,20 +221,20 @@ export const refreshSession = async () => {
     }
     
     // Update last refresh timestamp
-    localStorage.setItem(LAST_SESSION_REFRESH_KEY, now.toString());
+    safeLocalStorage.set(LAST_SESSION_REFRESH_KEY, now.toString());
     
     // Always try a network refresh
     const { data, error } = await supabase.auth.refreshSession();
     
     if (data.session) {
-      console.log("Session refreshed successfully:", {
+      logDebug("Session refreshed successfully:", {
         userId: data.session.user.id,
         expiresAt: new Date(data.session.expires_at! * 1000).toISOString()
       });
       
       // Cache successful session data
       try {
-        localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
+        safeLocalStorage.set(SESSION_CACHE_KEY, JSON.stringify({
           userId: data.session.user.id,
           timestamp: Date.now(),
           expiresAt: data.session.expires_at
@@ -176,13 +245,13 @@ export const refreshSession = async () => {
       
       return { data, error };
     } else if (error) {
-      console.error("Error refreshing session:", error.message);
+      logDebug("Error refreshing session:", error.message);
       
       // If refresh failed, try to get the session directly
-      console.log("Attempting to get session directly after refresh failure");
+      logDebug("Attempting to get session directly after refresh failure");
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData.session) {
-        console.log("Got session directly:", {
+        logDebug("Got session directly:", {
           userId: sessionData.session.user.id,
           expiresAt: new Date(sessionData.session.expires_at! * 1000).toISOString()
         });
@@ -191,7 +260,7 @@ export const refreshSession = async () => {
       
       return { data, error };
     } else {
-      console.log("Session refresh returned no session and no error");
+      logDebug("Session refresh returned no session and no error");
       return { data, error };
     }
   } catch (e) {
@@ -204,10 +273,10 @@ export const refreshSession = async () => {
 export const hasPotentialSession = () => {
   try {
     // Check local storage for session data
-    const hasLocalStorageSession = !!localStorage.getItem(SESSION_KEY);
+    const hasLocalStorageSession = !!safeLocalStorage.get(SESSION_KEY);
     
     // Check for cached session data
-    const cachedSessionData = localStorage.getItem(SESSION_CACHE_KEY);
+    const cachedSessionData = safeLocalStorage.get(SESSION_CACHE_KEY);
     let hasRecentCachedSession = false;
     let hasValidCachedSession = false;
     
@@ -231,7 +300,7 @@ export const hasPotentialSession = () => {
     
     const result = hasLocalStorageSession || hasRecentCachedSession || hasValidCachedSession;
     
-    console.log("Potential session check:", {
+    logDebug("Potential session check:", {
       hasLocalStorageSession,
       hasRecentCachedSession,
       hasValidCachedSession,
@@ -249,10 +318,23 @@ export const hasPotentialSession = () => {
 export const forceGetSession = async () => {
   try {
     // Clear any cached auth results first
-    localStorage.removeItem(LAST_SESSION_REFRESH_KEY);
+    safeLocalStorage.remove(LAST_SESSION_REFRESH_KEY);
+    
+    // Clear browser memory and start fresh
+    const originalValue = safeLocalStorage.get(SESSION_KEY);
+    if (originalValue) {
+      // Temporarily remove the session
+      safeLocalStorage.remove(SESSION_KEY);
+      
+      // Wait a small amount of time for any in-progress operations to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Put the original value back
+      safeLocalStorage.set(SESSION_KEY, originalValue);
+    }
     
     // Force a new session check
-    console.log("Forcing a new session check");
+    logDebug("Forcing a new session check");
     const { data, error } = await supabase.auth.getSession();
     
     if (error) {
@@ -261,19 +343,19 @@ export const forceGetSession = async () => {
     }
     
     if (data.session) {
-      console.log("Session found in forceGetSession:", {
+      logDebug("Session found in forceGetSession:", {
         userId: data.session.user.id,
         expiresAt: new Date(data.session.expires_at! * 1000).toISOString()
       });
       
       // Update the cache
-      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
+      safeLocalStorage.set(SESSION_CACHE_KEY, JSON.stringify({
         userId: data.session.user.id,
         timestamp: Date.now(),
         expiresAt: data.session.expires_at
       }));
     } else {
-      console.log("No session found in forceGetSession");
+      logDebug("No session found in forceGetSession");
     }
     
     return { data, error: null };
@@ -282,3 +364,41 @@ export const forceGetSession = async () => {
     return { data: { session: null, user: null }, error: e as Error };
   }
 };
+
+// New helper to completely reset the session state
+export const resetSessionState = async () => {
+  logDebug("Resetting all session state");
+  
+  try {
+    // Set the force reload flag
+    safeLocalStorage.set(FORCE_SESSION_RELOAD_KEY, Date.now().toString());
+    
+    // Clear all session-related storage
+    safeLocalStorage.remove(SESSION_KEY);
+    safeLocalStorage.remove(SESSION_CACHE_KEY);
+    safeLocalStorage.remove(LAST_SESSION_REFRESH_KEY);
+    
+    // Pause briefly to let changes take effect
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Force a clean session check
+    return await forceGetSession();
+  } catch (e) {
+    console.error("Error resetting session state:", e);
+    return { data: { session: null, user: null }, error: e as Error };
+  }
+};
+
+// Event listener for storage changes to help with cross-tab session management
+try {
+  window.addEventListener('storage', (event) => {
+    if (event.key === SESSION_KEY && event.newValue !== event.oldValue) {
+      logDebug("Session storage changed in another tab, refreshing session state");
+      forceGetSession().catch(err => {
+        console.error("Error handling cross-tab session change:", err);
+      });
+    }
+  });
+} catch (e) {
+  console.error("Failed to add storage event listener:", e);
+}

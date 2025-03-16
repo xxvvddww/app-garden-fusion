@@ -1,9 +1,11 @@
-import { ReactNode, useEffect, useState } from 'react';
+
+import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase, refreshSession, hasPotentialSession, forceGetSession } from '@/integrations/supabase/client';
+import { supabase, refreshSession, hasPotentialSession, forceGetSession, resetSessionState } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -21,6 +23,10 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [lastVisibleTime, setLastVisibleTime] = useState(Date.now());
+  const mountTimeRef = useRef(Date.now());
+  const sessionCheckIntervalRef = useRef<number | null>(null);
+  const [sessionCheckCount, setSessionCheckCount] = useState(0);
+  const [isResettingSession, setIsResettingSession] = useState(false);
 
   // Log current auth state for debugging
   useEffect(() => {
@@ -31,14 +37,80 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       currentPath: location.pathname,
       hasCheckedAuth,
       refreshAttempts,
-      isRefreshing
+      isRefreshing,
+      mountTime: new Date(mountTimeRef.current).toISOString(),
+      elapsedTime: Date.now() - mountTimeRef.current
     });
 
     // Set hasCheckedAuth to true once loading is complete
     if (!loading && !hasCheckedAuth) {
       setHasCheckedAuth(true);
     }
+    
+    return () => {
+      // Clear intervals on unmount
+      if (sessionCheckIntervalRef.current) {
+        window.clearInterval(sessionCheckIntervalRef.current);
+        sessionCheckIntervalRef.current = null;
+      }
+    };
   }, [user, session, loading, location, hasCheckedAuth, refreshAttempts, isRefreshing]);
+
+  // Setup periodic session checks if needed
+  useEffect(() => {
+    // Set up interval to periodically check session if no user but potential session exists
+    if (hasCheckedAuth && !user && !loading && hasPotentialSession() && !sessionCheckIntervalRef.current) {
+      console.log("Setting up periodic session checks in ProtectedRoute");
+      
+      sessionCheckIntervalRef.current = window.setInterval(() => {
+        if (!user && !isRefreshing && hasPotentialSession()) {
+          setSessionCheckCount(prev => prev + 1);
+        } else if (user) {
+          // Clear interval if we have a user
+          if (sessionCheckIntervalRef.current) {
+            window.clearInterval(sessionCheckIntervalRef.current);
+            sessionCheckIntervalRef.current = null;
+          }
+        }
+      }, 2000);
+    }
+    
+    return () => {
+      if (sessionCheckIntervalRef.current) {
+        window.clearInterval(sessionCheckIntervalRef.current);
+        sessionCheckIntervalRef.current = null;
+      }
+    };
+  }, [hasCheckedAuth, user, loading, isRefreshing]);
+  
+  // Perform periodic session checks
+  useEffect(() => {
+    const performSessionCheck = async () => {
+      if (sessionCheckCount > 0 && !user && !isRefreshing && !loading && hasPotentialSession()) {
+        console.log(`Performing periodic session check #${sessionCheckCount} in ProtectedRoute`);
+        setIsRefreshing(true);
+        
+        try {
+          const { data } = await forceGetSession();
+          console.log("Periodic session check result:", {
+            hasSession: !!data.session,
+            sessionUser: data.session?.user?.id
+          });
+          
+          if (data.session && refreshUserData) {
+            console.log("Session found, refreshing user data");
+            await refreshUserData();
+          }
+        } catch (error) {
+          console.error("Error in periodic session check:", error);
+        } finally {
+          setIsRefreshing(false);
+        }
+      }
+    };
+    
+    performSessionCheck();
+  }, [sessionCheckCount, user, isRefreshing, loading, refreshUserData]);
 
   // Immediately try to refresh session on mount if there might be a valid session
   useEffect(() => {
@@ -48,23 +120,15 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         try {
           console.log(`Attempting session refresh on ProtectedRoute mount (attempt ${refreshAttempts + 1})`);
           
-          // Use forceGetSession to do a clean check
-          if (refreshAttempts > 0) {
-            const result = await forceGetSession();
-            console.log("Force get session result:", {
-              hasSession: !!result.data.session,
-              hasError: !!result.error
-            });
-          } else {
-            const result = await refreshSession();
-            console.log("Session refresh result:", {
-              hasSession: !!result.data.session,
-              hasError: !!result.error
-            });
-          }
+          // Use forceGetSession for more reliable session checks
+          const result = await forceGetSession();
+          console.log("Force get session result:", {
+            hasSession: !!result.data.session,
+            hasError: !!result.error
+          });
           
           // After refreshing, update user data in Auth context
-          if (refreshUserData) {
+          if (result.data.session && refreshUserData) {
             console.log("Refreshing user data after session check");
             await refreshUserData();
           }
@@ -90,12 +154,10 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         const timeSinceLastVisible = now - lastVisibleTime;
         setLastVisibleTime(now);
         
-        // Only do a full refresh if we've been away for more than 5 seconds
-        const shouldDoFullRefresh = timeSinceLastVisible > 5000;
-        
         console.log('App visible, rechecking auth state in ProtectedRoute', {
           timeSinceLastVisible,
-          shouldDoFullRefresh
+          hasSession: !!session,
+          hasUser: !!user
         });
         
         if (!user && !session && !loading && !isRefreshing && hasPotentialSession()) {
@@ -103,22 +165,14 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           try {
             console.log("Attempting to refresh session on visibility change");
             
-            if (shouldDoFullRefresh) {
-              // Do a clean session check if we've been away for a while
-              const result = await forceGetSession();
-              console.log("Force session check result:", {
-                hasSession: !!result.data.session
-              });
-            } else {
-              // Otherwise just do a normal refresh
-              const result = await refreshSession();
-              console.log("Session refresh result:", {
-                hasSession: !!result.data.session
-              });
-            }
+            // Always do a clean session check when returning from background
+            const result = await forceGetSession();
+            console.log("Force session check result on visibility change:", {
+              hasSession: !!result.data.session
+            });
             
             // If we have a session but no user data, force a refresh
-            if (refreshUserData) {
+            if (result.data.session && refreshUserData) {
               console.log("Refreshing user data after visibility change");
               await refreshUserData();
             }
@@ -137,7 +191,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           } finally {
             setIsRefreshing(false);
           }
-        } else if (!user && !session && shouldDoFullRefresh) {
+        } else if (!user && !session && timeSinceLastVisible > 5000) {
           console.log("No session potential on visibility change, redirecting to login");
           navigate('/login', { replace: true, state: { from: location } });
         }
@@ -150,17 +204,67 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     };
   }, [session, user, navigate, refreshUserData, location, loading, isRefreshing, lastVisibleTime, refreshAttempts, toast]);
 
+  // Handle complete session reset
+  const handleResetSession = async () => {
+    if (isResettingSession) return;
+    
+    setIsResettingSession(true);
+    try {
+      console.log("User requested complete session reset");
+      toast({
+        title: "Resetting session",
+        description: "Please wait while we reset your session state..."
+      });
+      
+      await resetSessionState();
+      
+      // Force redirect to login
+      navigate('/login', { replace: true, state: { from: location } });
+    } catch (error) {
+      console.error("Error resetting session:", error);
+      toast({
+        title: "Error",
+        description: "Failed to reset session state",
+        variant: "destructive"
+      });
+    } finally {
+      setIsResettingSession(false);
+    }
+  };
+
   // Show enhanced loading state when refreshing session
   if (loading || isRefreshing) {
     return (
-      <div className="container mx-auto p-4 space-y-4">
-        <div className="flex items-center space-x-2 mb-4">
-          <Skeleton className="h-8 w-8 rounded-full" />
-          <Skeleton className="h-8 w-64" />
+      <div className="container mx-auto p-4 space-y-6">
+        <div className="flex items-center space-x-2 mb-6">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-64" />
+            <Skeleton className="h-3 w-40" />
+          </div>
         </div>
+        
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-40 w-full" />
+        
+        {refreshAttempts > 1 && (
+          <div className="flex flex-col items-center justify-center mt-8 space-y-2">
+            <p className="text-muted-foreground text-sm">
+              {isRefreshing ? "Checking session status..." : "Still loading..."}
+            </p>
+            {refreshAttempts >= 2 && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleResetSession}
+                disabled={isResettingSession}
+              >
+                {isResettingSession ? "Resetting..." : "Reset Session"}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

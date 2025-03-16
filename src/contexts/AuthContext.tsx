@@ -1,5 +1,6 @@
-import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+
+import { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
+import { supabase, refreshSession, forceGetSession } from '@/integrations/supabase/client';
 import { User } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 import { Session } from '@supabase/supabase-js';
@@ -23,22 +24,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(() => {
     // Try to restore user from localStorage on initial load
-    const storedUser = localStorage.getItem(STORAGE_KEY);
-    return storedUser ? JSON.parse(storedUser) : null;
+    try {
+      const storedUser = localStorage.getItem(STORAGE_KEY);
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch (e) {
+      console.error("Error restoring user from localStorage:", e);
+      return null;
+    }
   });
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   // Save user to localStorage whenever it changes
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+    try {
+      if (user) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (e) {
+      console.error("Error saving user to localStorage:", e);
     }
   }, [user]);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = useCallback(async (userId: string) => {
     try {
       setLoading(true);
       console.log("Fetching user profile for:", userId);
@@ -104,7 +114,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // Store timestamp of successful auth check
-      localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
+      try {
+        localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
+      } catch (e) {
+        console.error("Error storing auth check timestamp:", e);
+      }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       toast({
@@ -115,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     console.log("AuthProvider initialized");
@@ -124,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         setLoading(true);
         // Get initial session
-        const { data: sessionData } = await supabase.auth.getSession();
+        const { data: sessionData } = await forceGetSession();
         console.log("Initial session fetched:", sessionData.session ? {
           id: sessionData.session.user.id,
           email: sessionData.session.user.email,
@@ -162,8 +176,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             setLoading(false);
             // Clear stored data on sign out
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(LAST_AUTH_CHECK_KEY);
+            try {
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(LAST_AUTH_CHECK_KEY);
+            } catch (e) {
+              console.error("Error clearing stored data on sign out:", e);
+            }
           }
         });
         
@@ -182,48 +200,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         // Check when we last successfully verified auth
-        const lastAuthCheck = localStorage.getItem(LAST_AUTH_CHECK_KEY);
-        const now = Date.now();
-        const fiveMinutesAgo = now - (5 * 60 * 1000);
-        const shouldCheckAuth = !lastAuthCheck || parseInt(lastAuthCheck) < fiveMinutesAgo;
-        
-        console.log('App became visible, refreshing auth state', {
-          shouldCheckAuth,
-          lastCheck: lastAuthCheck ? new Date(parseInt(lastAuthCheck)).toISOString() : 'never'
-        });
+        try {
+          const lastAuthCheck = localStorage.getItem(LAST_AUTH_CHECK_KEY);
+          const now = Date.now();
+          const fiveMinutesAgo = now - (5 * 60 * 1000);
+          const shouldCheckAuth = !lastAuthCheck || parseInt(lastAuthCheck) < fiveMinutesAgo;
+          
+          console.log('App became visible, refreshing auth state', {
+            shouldCheckAuth,
+            lastCheck: lastAuthCheck ? new Date(parseInt(lastAuthCheck)).toISOString() : 'never'
+          });
 
-        if (shouldCheckAuth) {
-          try {
-            setLoading(true);
-            const { data } = await supabase.auth.getSession();
-            
-            // If we have a valid session
-            if (data.session) {
-              console.log('Valid session found on visibility change');
-              setSession(data.session);
+          if (shouldCheckAuth) {
+            try {
+              setLoading(true);
+              const { data } = await forceGetSession();
               
-              // Check if user data needs to be refreshed
-              if (!user || user.user_id !== data.session.user.id) {
-                await fetchUserProfile(data.session.user.id);
+              // If we have a valid session
+              if (data.session) {
+                console.log('Valid session found on visibility change');
+                setSession(data.session);
+                
+                // Check if user data needs to be refreshed
+                if (!user || user.user_id !== data.session.user.id) {
+                  await fetchUserProfile(data.session.user.id);
+                } else {
+                  setLoading(false);
+                }
+                
+                // Update last auth check timestamp
+                localStorage.setItem(LAST_AUTH_CHECK_KEY, now.toString());
+              } else if (session) {
+                // We thought we had a session but it's invalid/expired
+                console.log('Session invalid on visibility change');
+                setSession(null);
+                setUser(null);
+                setLoading(false);
               } else {
                 setLoading(false);
               }
-              
-              // Update last auth check timestamp
-              localStorage.setItem(LAST_AUTH_CHECK_KEY, now.toString());
-            } else if (session) {
-              // We thought we had a session but it's invalid/expired
-              console.log('Session invalid on visibility change');
-              setSession(null);
-              setUser(null);
-              setLoading(false);
-            } else {
+            } catch (error) {
+              console.error('Error checking session on visibility change:', error);
               setLoading(false);
             }
-          } catch (error) {
-            console.error('Error checking session on visibility change:', error);
-            setLoading(false);
           }
+        } catch (e) {
+          console.error("Error in visibility change handler:", e);
         }
       }
     };
@@ -233,13 +255,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [toast]);
+  }, [toast, fetchUserProfile, session, user]);
 
-  const refreshUserData = async () => {
+  const refreshUserData = useCallback(async () => {
     if (session) {
       await fetchUserProfile(session.user.id);
     }
-  };
+  }, [session, fetchUserProfile]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -269,6 +291,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
+      
+      // Clear stored data
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(LAST_AUTH_CHECK_KEY);
+      } catch (e) {
+        console.error("Error clearing stored data on sign out:", e);
+      }
     } catch (error) {
       console.error('Sign out error:', error);
       toast({
