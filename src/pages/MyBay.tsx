@@ -86,6 +86,41 @@ const MyBay = () => {
     }
   };
 
+  // Get unique bays from assignments to avoid duplicates
+  const getUniqueBays = (assignments: (PermanentAssignment & { bay: Bay })[]) => {
+    const uniqueBaysMap = new Map<string, Bay>();
+    
+    assignments.forEach(assignment => {
+      if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
+        uniqueBaysMap.set(assignment.bay.bay_id, {
+          ...assignment.bay,
+          status: 'Reserved' as Bay['status'],
+          reserved_by_you: true
+        });
+      }
+    });
+    
+    return Array.from(uniqueBaysMap.values());
+  };
+
+  // Get unique bays from daily claims
+  const getUniqueDailyClaimBays = () => {
+    const uniqueBaysMap = new Map<string, Bay>();
+    
+    dailyClaims.forEach(claim => {
+      const matchingBay = assignments.find(a => a.bay.bay_id === claim.bay_id)?.bay;
+      if (matchingBay && !uniqueBaysMap.has(matchingBay.bay_id)) {
+        uniqueBaysMap.set(matchingBay.bay_id, {
+          ...matchingBay,
+          status: 'Reserved' as Bay['status'],
+          reserved_by_you: true
+        });
+      }
+    });
+    
+    return Array.from(uniqueBaysMap.values());
+  };
+
   const handleBayClick = (bay: Bay) => {
     setSelectedBay(bay);
     setAvailabilityDialogOpen(true);
@@ -187,6 +222,9 @@ const MyBay = () => {
     );
   }
 
+  const uniquePermanentBays = getUniqueBays(assignments);
+  const uniqueDailyBays = getUniqueDailyClaimBays();
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">My Bay</h1>
@@ -198,7 +236,7 @@ const MyBay = () => {
         </TabsList>
         
         <TabsContent value="permanent" className="space-y-6">
-          {assignments.length === 0 ? (
+          {uniquePermanentBays.length === 0 ? (
             <Card>
               <CardContent className="p-6">
                 <p className="text-center text-muted-foreground py-4">
@@ -209,14 +247,10 @@ const MyBay = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {assignments.map(assignment => (
+              {uniquePermanentBays.map(bay => (
                 <BayCard 
-                  key={assignment.assignment_id} 
-                  bay={{
-                    ...assignment.bay,
-                    status: 'Reserved' as Bay['status'],
-                    reserved_by_you: true
-                  }}
+                  key={bay.bay_id} 
+                  bay={bay}
                   onClick={handleBayClick}
                 />
               ))}
@@ -225,7 +259,7 @@ const MyBay = () => {
         </TabsContent>
         
         <TabsContent value="daily" className="space-y-6">
-          {dailyClaims.length === 0 ? (
+          {uniqueDailyBays.length === 0 ? (
             <Card>
               <CardContent className="p-6">
                 <p className="text-center text-muted-foreground py-4">
@@ -236,22 +270,13 @@ const MyBay = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {dailyClaims.map(claim => {
-                const matchingBay = assignments.find(a => a.bay.bay_id === claim.bay_id)?.bay;
-                if (!matchingBay) return null;
-                
-                return (
-                  <BayCard 
-                    key={claim.claim_id} 
-                    bay={{
-                      ...matchingBay,
-                      status: 'Reserved' as Bay['status'],
-                      reserved_by_you: true
-                    }}
-                    onClick={handleBayClick}
-                  />
-                );
-              })}
+              {uniqueDailyBays.map(bay => (
+                <BayCard 
+                  key={bay.bay_id} 
+                  bay={bay}
+                  onClick={handleBayClick}
+                />
+              ))}
             </div>
           )}
         </TabsContent>
