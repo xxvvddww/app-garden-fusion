@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -79,7 +80,7 @@ const Bays = () => {
           const claimedByUser = dailyClaimsMap.get(bay.bay_id) === user?.user_id;
           return {
             ...baseBay,
-            status: 'Reserved',
+            status: 'Reserved' as Bay['status'],
             reserved_by_you: claimedByUser
           };
         }
@@ -89,7 +90,7 @@ const Bays = () => {
           const assignedToUser = permanentAssignmentsMap.get(bay.bay_id) === user?.user_id;
           return {
             ...baseBay,
-            status: 'Reserved',
+            status: 'Reserved' as Bay['status'],
             reserved_by_you: assignedToUser
           };
         }
@@ -97,11 +98,11 @@ const Bays = () => {
         // Bay is available
         return {
           ...baseBay,
-          status: 'Available'
+          status: 'Available' as Bay['status']
         };
       });
       
-      setBays(updatedBays);
+      setBays(updatedBays as Bay[]);
     } catch (error) {
       console.error('Error fetching bays:', error);
       toast({

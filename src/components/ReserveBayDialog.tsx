@@ -137,7 +137,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
       const { error: bayError } = await supabase
         .from('bays')
         .update({ 
-          status: 'Reserved',
+          status: 'Reserved' as Bay['status'],
           updated_by: user.user_id
         })
         .eq('bay_id', bay.bay_id);
