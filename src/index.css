@@ -94,16 +94,30 @@
   @apply bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors;
 }
 
-/* Glowing effect for navigation */
-@keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(139, 92, 246, 0.7);
+/* Enhanced glowing effect for navigation */
+@keyframes flow-glow {
+  0% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.7);
+    background: linear-gradient(90deg, #3b82f6, #6366f1);
+  }
+  25% {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.8), 0 0 12px rgba(99, 102, 241, 0.5);
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
   }
   50% {
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.9), 0 0 15px rgba(155, 135, 245, 0.7);
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.9), 0 0 15px rgba(139, 92, 246, 0.6);
+    background: linear-gradient(90deg, #8b5cf6, #6366f1);
+  }
+  75% {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.8), 0 0 12px rgba(99, 102, 241, 0.5);
+    background: linear-gradient(90deg, #6366f1, #3b82f6);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.7);
+    background: linear-gradient(90deg, #3b82f6, #6366f1);
   }
 }
 
-.animate-pulse {
-  animation: glow 2s ease-in-out infinite;
+.animate-flow {
+  animation: flow-glow 3s infinite;
 }

@@ -1,4 +1,3 @@
-
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -59,7 +58,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     navigate('/login');
   };
 
-  // 3. Rearranged menu order: Bays, My Bay, Admin
   const navigationItems = [
     { path: "/bays", label: "Bays" },
   ];
@@ -128,10 +126,10 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                 {item.label}
                 <span 
                   className={cn(
-                    "absolute bottom-0 left-0 w-full h-0.5 bg-transparent",
+                    "absolute bottom-0 left-0 w-full h-0.5",
                     location.pathname === item.path 
-                      ? "bg-purple-500 shadow-[0_0_8px_0px_rgba(139,92,246,0.8)] animate-pulse" 
-                      : "group-hover:bg-purple-500/30"
+                      ? "animate-flow" 
+                      : "bg-transparent group-hover:bg-gradient-to-r group-hover:from-blue-500/30 group-hover:to-purple-500/30"
                   )}
                 />
               </Link>
