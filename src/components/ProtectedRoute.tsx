@@ -1,9 +1,9 @@
-
 import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase, refreshSession, hasPotentialSession } from '@/integrations/supabase/client';
+import { supabase, refreshSession, hasPotentialSession, forceGetSession } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -14,11 +14,15 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { user, session, loading, refreshUserData } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
   // Track whether initial auth check has completed
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [lastVisibleTime, setLastVisibleTime] = useState(Date.now());
 
+  // Log current auth state for debugging
   useEffect(() => {
     console.log("ProtectedRoute - auth state:", { 
       hasUser: !!user, 
@@ -43,15 +47,25 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         setIsRefreshing(true);
         try {
           console.log(`Attempting session refresh on ProtectedRoute mount (attempt ${refreshAttempts + 1})`);
-          const result = await refreshSession();
-          console.log("Session refresh result:", {
-            hasSession: !!result.data.session,
-            hasError: !!result.error
-          });
+          
+          // Use forceGetSession to do a clean check
+          if (refreshAttempts > 0) {
+            const result = await forceGetSession();
+            console.log("Force get session result:", {
+              hasSession: !!result.data.session,
+              hasError: !!result.error
+            });
+          } else {
+            const result = await refreshSession();
+            console.log("Session refresh result:", {
+              hasSession: !!result.data.session,
+              hasError: !!result.error
+            });
+          }
           
           // After refreshing, update user data in Auth context
-          if (result.data.session && refreshUserData) {
-            console.log("Session exists, refreshing user data");
+          if (refreshUserData) {
+            console.log("Refreshing user data after session check");
             await refreshUserData();
           }
         } catch (error) {
@@ -72,25 +86,58 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        console.log('App visible, rechecking auth state in ProtectedRoute');
+        const now = Date.now();
+        const timeSinceLastVisible = now - lastVisibleTime;
+        setLastVisibleTime(now);
+        
+        // Only do a full refresh if we've been away for more than 5 seconds
+        const shouldDoFullRefresh = timeSinceLastVisible > 5000;
+        
+        console.log('App visible, rechecking auth state in ProtectedRoute', {
+          timeSinceLastVisible,
+          shouldDoFullRefresh
+        });
         
         if (!user && !session && !loading && !isRefreshing && hasPotentialSession()) {
           setIsRefreshing(true);
           try {
             console.log("Attempting to refresh session on visibility change");
-            const result = await refreshSession();
+            
+            if (shouldDoFullRefresh) {
+              // Do a clean session check if we've been away for a while
+              const result = await forceGetSession();
+              console.log("Force session check result:", {
+                hasSession: !!result.data.session
+              });
+            } else {
+              // Otherwise just do a normal refresh
+              const result = await refreshSession();
+              console.log("Session refresh result:", {
+                hasSession: !!result.data.session
+              });
+            }
             
             // If we have a session but no user data, force a refresh
-            if (result.data.session && refreshUserData) {
-              console.log("Session exists after visibility change, refreshing user data");
+            if (refreshUserData) {
+              console.log("Refreshing user data after visibility change");
               await refreshUserData();
+            }
+            
+            // If we still don't have a session after multiple attempts, show toast
+            if (refreshAttempts >= 2 && !session && !user) {
+              toast({
+                title: "Session expired",
+                description: "Please log in again to continue",
+                variant: "destructive",
+              });
+              navigate('/login', { replace: true, state: { from: location } });
             }
           } catch (error) {
             console.error("Error refreshing session on visibility change:", error);
           } finally {
             setIsRefreshing(false);
           }
-        } else if (!user && !session) {
+        } else if (!user && !session && shouldDoFullRefresh) {
           console.log("No session potential on visibility change, redirecting to login");
           navigate('/login', { replace: true, state: { from: location } });
         }
@@ -101,7 +148,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session, user, navigate, refreshUserData, location, loading, isRefreshing]);
+  }, [session, user, navigate, refreshUserData, location, loading, isRefreshing, lastVisibleTime, refreshAttempts, toast]);
 
   // Show enhanced loading state when refreshing session
   if (loading || isRefreshing) {

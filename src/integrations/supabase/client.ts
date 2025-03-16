@@ -9,6 +9,7 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Create a session key that includes device info to help with session restoration
 const SESSION_KEY = 'bay-management-auth-token';
 const SESSION_CACHE_KEY = 'bay-management-session-cache';
+const LAST_SESSION_REFRESH_KEY = 'bay-management-last-refresh';
 
 // Initialize the Supabase client with explicit type and improved error handling
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -130,25 +131,30 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Function to force refresh the session
+// Enhanced session refresh with throttling to avoid excessive calls
 export const refreshSession = async () => {
   try {
     console.log("Attempting to refresh session");
     
-    // Try to get session from cache first to avoid network request
-    const cachedSessionData = localStorage.getItem(SESSION_CACHE_KEY);
-    let cachedSession = null;
-    if (cachedSessionData) {
-      try {
-        cachedSession = JSON.parse(cachedSessionData);
-        console.log("Found cached session:", !!cachedSession);
-      } catch (e) {
-        console.error("Error parsing cached session:", e);
-        localStorage.removeItem(SESSION_CACHE_KEY);
+    // Implement basic throttling - don't refresh more than once per 10 seconds
+    const lastRefresh = localStorage.getItem(LAST_SESSION_REFRESH_KEY);
+    const now = Date.now();
+    
+    if (lastRefresh) {
+      const timeSinceLastRefresh = now - parseInt(lastRefresh);
+      if (timeSinceLastRefresh < 10000) { // 10 seconds
+        console.log(`Skipping refresh, last refresh was ${timeSinceLastRefresh}ms ago`);
+        
+        // Try to get session directly if we're skipping the refresh
+        const { data: sessionData } = await supabase.auth.getSession();
+        return { data: sessionData, error: null };
       }
     }
     
-    // Always try a network refresh regardless of cached data
+    // Update last refresh timestamp
+    localStorage.setItem(LAST_SESSION_REFRESH_KEY, now.toString());
+    
+    // Always try a network refresh
     const { data, error } = await supabase.auth.refreshSession();
     
     if (data.session) {
@@ -161,7 +167,8 @@ export const refreshSession = async () => {
       try {
         localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
           userId: data.session.user.id,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          expiresAt: data.session.expires_at
         }));
       } catch (e) {
         console.error("Error caching session data:", e);
@@ -171,17 +178,15 @@ export const refreshSession = async () => {
     } else if (error) {
       console.error("Error refreshing session:", error.message);
       
-      // If refresh failed but we have cached session, try to get the session directly
-      if (cachedSession) {
-        console.log("Attempting to get session directly after refresh failure");
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session) {
-          console.log("Got session directly:", {
-            userId: sessionData.session.user.id,
-            expiresAt: new Date(sessionData.session.expires_at! * 1000).toISOString()
-          });
-          return { data: sessionData, error: null };
-        }
+      // If refresh failed, try to get the session directly
+      console.log("Attempting to get session directly after refresh failure");
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        console.log("Got session directly:", {
+          userId: sessionData.session.user.id,
+          expiresAt: new Date(sessionData.session.expires_at! * 1000).toISOString()
+        });
+        return { data: sessionData, error: null };
       }
       
       return { data, error };
@@ -195,7 +200,7 @@ export const refreshSession = async () => {
   }
 };
 
-// Helper function to check if we have a potentially valid session
+// Improved helper function to check if we have a potentially valid session
 export const hasPotentialSession = () => {
   try {
     // Check local storage for session data
@@ -204,26 +209,76 @@ export const hasPotentialSession = () => {
     // Check for cached session data
     const cachedSessionData = localStorage.getItem(SESSION_CACHE_KEY);
     let hasRecentCachedSession = false;
+    let hasValidCachedSession = false;
     
     if (cachedSessionData) {
       try {
         const cachedSession = JSON.parse(cachedSessionData);
         const cacheAge = Date.now() - (cachedSession.timestamp || 0);
+        
         // Consider cache valid if less than 24 hours old
         hasRecentCachedSession = cacheAge < 24 * 60 * 60 * 1000;
+        
+        // Check if the session is still valid based on expiration time
+        if (cachedSession.expiresAt) {
+          const now = Math.floor(Date.now() / 1000); // Convert to seconds
+          hasValidCachedSession = cachedSession.expiresAt > now;
+        }
       } catch (e) {
         console.error("Error parsing cached session:", e);
       }
     }
     
+    const result = hasLocalStorageSession || hasRecentCachedSession || hasValidCachedSession;
+    
     console.log("Potential session check:", {
       hasLocalStorageSession,
-      hasRecentCachedSession
+      hasRecentCachedSession,
+      hasValidCachedSession,
+      result
     });
     
-    return hasLocalStorageSession || hasRecentCachedSession;
+    return result;
   } catch (e) {
     console.error("Error checking for potential session:", e);
     return false;
+  }
+};
+
+// Force getSession to do a network call to verify token
+export const forceGetSession = async () => {
+  try {
+    // Clear any cached auth results first
+    localStorage.removeItem(LAST_SESSION_REFRESH_KEY);
+    
+    // Force a new session check
+    console.log("Forcing a new session check");
+    const { data, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error("Error in forceGetSession:", error.message);
+      return { data: { session: null, user: null }, error };
+    }
+    
+    if (data.session) {
+      console.log("Session found in forceGetSession:", {
+        userId: data.session.user.id,
+        expiresAt: new Date(data.session.expires_at! * 1000).toISOString()
+      });
+      
+      // Update the cache
+      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
+        userId: data.session.user.id,
+        timestamp: Date.now(),
+        expiresAt: data.session.expires_at
+      }));
+    } else {
+      console.log("No session found in forceGetSession");
+    }
+    
+    return { data, error: null };
+  } catch (e) {
+    console.error("Exception in forceGetSession:", e);
+    return { data: { session: null, user: null }, error: e as Error };
   }
 };

@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/components/ui/use-toast';
 import SignupForm from '@/components/SignupForm';
-import { hasPotentialSession, refreshSession } from '@/integrations/supabase/client';
+import { hasPotentialSession, refreshSession, forceGetSession } from '@/integrations/supabase/client';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -30,6 +30,7 @@ const Login = () => {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [redirectAttempts, setRedirectAttempts] = useState(0);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
+  const [lastVisibleTime, setLastVisibleTime] = useState(Date.now());
 
   // Get the intended destination from location state, or default to '/'
   const from = location.state?.from?.pathname || '/';
@@ -54,7 +55,8 @@ const Login = () => {
         setIsRefreshingSession(true);
         
         try {
-          await refreshSession();
+          // Try a forced session check first, which clears caches
+          await forceGetSession();
         } catch (error) {
           console.error("Error refreshing session on login page mount:", error);
         } finally {
@@ -97,15 +99,34 @@ const Login = () => {
   // Handle visibility change to refresh session when tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && !user && !loading && !isRefreshingSession) {
-        console.log("Login page visible, checking for session");
-        setIsRefreshingSession(true);
-        try {
-          await refreshSession();
-        } catch (error) {
-          console.error("Error refreshing session on visibility change:", error);
-        } finally {
-          setIsRefreshingSession(false);
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        const timeSinceLastVisible = now - lastVisibleTime;
+        setLastVisibleTime(now);
+        
+        // Do a full session refresh if we've been away for more than 5 seconds
+        const shouldDoFullRefresh = timeSinceLastVisible > 5000;
+        
+        console.log("Login page visible, checking for session", {
+          timeSinceLastVisible,
+          shouldDoFullRefresh
+        });
+        
+        if (!user && !loading && !isRefreshingSession) {
+          setIsRefreshingSession(true);
+          try {
+            if (shouldDoFullRefresh) {
+              // Clean session check after being away
+              await forceGetSession();
+            } else {
+              // Regular refresh for brief visibility changes
+              await refreshSession();
+            }
+          } catch (error) {
+            console.error("Error refreshing session on visibility change:", error);
+          } finally {
+            setIsRefreshingSession(false);
+          }
         }
       }
     };
@@ -115,7 +136,7 @@ const Login = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, loading]);
+  }, [user, loading, lastVisibleTime]);
 
   const onSubmit = async (values: LoginFormValues) => {
     if (isSubmitting) return;
