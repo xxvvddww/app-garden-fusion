@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -292,59 +291,57 @@ const Admin = () => {
         created_by: user?.user_id
       }));
       
-      // FIX: Improved deletion logic with better logging
       if (removedDays.length > 0) {
-        console.log('Attempting to delete assignments for days:', removedDays);
+        console.log('Starting deletion process for days:', removedDays);
         
         for (const day of removedDays) {
-          console.log(`Deleting assignment for day: ${day}, user: ${selectedUser}, bay: ${selectedBay}`);
+          console.log(`Attempting to delete assignment: user_id=${selectedUser}, bay_id=${selectedBay}, day_of_week=${day}`);
           
-          // First, retrieve the assignment to confirm it exists
-          const { data: assignmentToDelete, error: findError } = await supabase
+          const { data, error, count } = await supabase
             .from('permanent_assignments')
-            .select('*')
+            .delete({ returning: 'minimal', count: 'exact' })
             .eq('user_id', selectedUser)
             .eq('bay_id', selectedBay)
             .eq('day_of_week', day);
-            
-          console.log(`Found assignments to delete:`, assignmentToDelete);
           
-          if (findError) {
-            console.error(`Error finding assignment for ${day}:`, findError);
-            continue;
-          }
+          console.log(`Delete operation completed with count: ${count}, error:`, error || 'none');
           
-          if (!assignmentToDelete || assignmentToDelete.length === 0) {
-            console.warn(`No assignment found for ${day} to delete`);
-            continue;
-          }
-          
-          // Then perform the delete with explicit match on all three fields
-          const { error: deleteError, count } = await supabase
-            .from('permanent_assignments')
-            .delete()
-            .match({
-              user_id: selectedUser,
-              bay_id: selectedBay,
-              day_of_week: day
+          if (error) {
+            console.error(`Failed to delete assignment for ${day}:`, error);
+            toast({
+              title: 'Error',
+              description: `Failed to delete assignment for ${day}: ${error.message}`,
+              variant: 'destructive',
             });
-          
-          console.log(`Delete operation result for ${day}:`, { error: deleteError, count });
-          
-          if (deleteError) {
-            console.error(`Error removing assignment for ${day}:`, deleteError);
-            throw deleteError;
+          } else {
+            console.log(`Successfully deleted ${count} assignments for ${day}`);
           }
         }
         
-        // Verify deletion worked by refetching assignments
-        const { data: verifyData, error: verifyError } = await supabase
+        const { data: remainingAssignments, error: checkError } = await supabase
           .from('permanent_assignments')
-          .select('day_of_week')
+          .select('*')
           .eq('user_id', selectedUser)
           .eq('bay_id', selectedBay);
+        
+        if (checkError) {
+          console.error('Error checking remaining assignments:', checkError);
+        } else {
+          console.log('Remaining assignments after deletion:', remainingAssignments);
           
-        console.log('After deletion, remaining assignments:', verifyData?.map(item => item.day_of_week));
+          const anyRemovedDaysStillPresent = remainingAssignments?.some(
+            assignment => removedDays.includes(assignment.day_of_week)
+          );
+          
+          if (anyRemovedDaysStillPresent) {
+            console.warn('Some assignments were not deleted properly!');
+            toast({
+              title: 'Warning',
+              description: 'Some assignments may not have been deleted properly. Please try again.',
+              variant: 'destructive',
+            });
+          }
+        }
       }
       
       if (assignmentsToCreate.length > 0) {
@@ -358,7 +355,6 @@ const Admin = () => {
         }
       }
       
-      // Refetch assignments to ensure UI is synced with database
       await fetchExistingAssignments();
       await fetchStats();
       

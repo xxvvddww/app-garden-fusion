@@ -6,17 +6,48 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://xkxaoyuxdxamhszltqgx.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhreGFveXV4ZHhhbWhzemx0cWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIwNTg4NjEsImV4cCI6MjA1NzYzNDg2MX0.easK7cjl-T9o31F1xV804WcFa8oDmaQI6YQLwt__xqc";
 
-// Initialize the Supabase client with explicit type
+// Initialize the Supabase client with explicit type and improved error handling
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'bay-management-auth-token', // Adding a specific storage key for clarity
-    debug: true // Enable debug mode to log authentication issues
+    storageKey: 'bay-management-auth-token',
+    debug: true
+  },
+  db: {
+    schema: 'public'
   },
   global: {
+    headers: {
+      'Content-Type': 'application/json'
+    },
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
-      return fetch(url, options);
+      // Add custom logging for debugging database requests
+      console.log(`Supabase request to: ${typeof url === 'string' ? url : url.toString()}`);
+      if (options?.method) {
+        console.log(`Method: ${options.method}`);
+      }
+      if (options?.body) {
+        try {
+          console.log(`Request body: ${JSON.stringify(JSON.parse(options.body as string), null, 2)}`);
+        } catch (e) {
+          console.log(`Request body: ${options.body}`);
+        }
+      }
+      
+      return fetch(url, options).then(async (response) => {
+        // Clone response to allow reading the body multiple times
+        const clonedResponse = response.clone();
+        
+        try {
+          const responseData = await clonedResponse.json();
+          console.log(`Supabase response: ${JSON.stringify(responseData, null, 2)}`);
+        } catch (e) {
+          console.log(`Could not parse response as JSON: ${e}`);
+        }
+        
+        return response;
+      });
     }
   }
 });
