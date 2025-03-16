@@ -1,5 +1,5 @@
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,15 +13,40 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { user, session, loading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  // Track whether initial auth check has completed
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
 
   useEffect(() => {
     console.log("ProtectedRoute - auth state:", { 
       hasUser: !!user, 
       hasSession: !!session, 
       loading, 
-      currentPath: location.pathname 
+      currentPath: location.pathname,
+      hasCheckedAuth
     });
-  }, [user, session, loading, location]);
+
+    // Set hasCheckedAuth to true once loading is complete
+    if (!loading && !hasCheckedAuth) {
+      setHasCheckedAuth(true);
+    }
+  }, [user, session, loading, location, hasCheckedAuth]);
+
+  // When returning from background on mobile, this helps re-validate auth status
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && hasCheckedAuth) {
+        console.log('App visible, rechecking auth state in ProtectedRoute');
+        if (!session || !user) {
+          navigate('/login', { replace: true });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [session, user, hasCheckedAuth, navigate]);
 
   if (loading) {
     return (

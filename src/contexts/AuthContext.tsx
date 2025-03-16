@@ -16,11 +16,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Use localStorage to improve mobile session restoration
+const STORAGE_KEY = 'parking-app-user-data';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    // Try to restore user from localStorage on initial load
+    const storedUser = localStorage.getItem(STORAGE_KEY);
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  // Save user to localStorage whenever it changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [user]);
 
   useEffect(() => {
     console.log("AuthProvider initialized");
@@ -77,6 +93,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     initAuth();
+
+    // Add visibility change listener for better mobile browser session restoration
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('App became visible, refreshing auth state');
+        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+          if (currentSession && (!session || currentSession.access_token !== session.access_token)) {
+            console.log('Session updated on visibility change');
+            setSession(currentSession);
+            fetchUserProfile(currentSession.user.id);
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
