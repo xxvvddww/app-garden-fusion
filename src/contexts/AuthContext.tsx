@@ -28,7 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Get initial session
         const { data: sessionData } = await supabase.auth.getSession();
-        console.log("Initial session fetched:", sessionData.session);
+        console.log("Initial session fetched:", sessionData.session ? {
+          id: sessionData.session.user.id,
+          email: sessionData.session.user.email,
+          hasAccessToken: !!sessionData.session.access_token,
+          accessTokenPreview: sessionData.session.access_token ? 
+            sessionData.session.access_token.substring(0, 10) + '...' : 'none'
+        } : 'No session');
         
         setSession(sessionData.session);
         
@@ -40,7 +46,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Set up auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-          console.log("Auth state changed:", event, newSession);
+          console.log("Auth state changed:", event, newSession ? {
+            id: newSession.user.id,
+            email: newSession.user.email,
+            hasAccessToken: !!newSession.access_token,
+            accessTokenPreview: newSession.access_token ? 
+              newSession.access_token.substring(0, 10) + '...' : 'none'
+          } : 'No session');
+          
           setSession(newSession);
           
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -188,6 +201,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
   };
+  
+  console.log("Auth context value:", {
+    hasSession: !!session,
+    hasUser: !!user,
+    userRole: user?.role,
+    loading
+  });
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

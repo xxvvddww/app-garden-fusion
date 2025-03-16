@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,7 +22,7 @@ import {
 } from 'lucide-react';
 
 const Admin = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -42,7 +41,8 @@ const Admin = () => {
 
   useEffect(() => {
     fetchStats();
-  }, []);
+    console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
+  }, [user, session]);
 
   const fetchStats = async () => {
     try {
@@ -132,6 +132,35 @@ const Admin = () => {
     try {
       setAssignmentLoading(true);
       
+      console.log("Current auth state before creating assignment:", { 
+        user, 
+        session, 
+        hasSessionObject: !!session,
+        accessToken: session?.access_token?.substring(0, 10) + '...' 
+      });
+      
+      if (!session) {
+        console.error("No active session found");
+        toast({
+          title: 'Authentication Error',
+          description: 'You must be logged in to create assignments. Please refresh the page and try again.',
+          variant: 'destructive',
+        });
+        setAssignmentLoading(false);
+        return;
+      }
+      
+      if (!user || user.role !== 'Admin') {
+        console.error("User is not an admin:", user?.role);
+        toast({
+          title: 'Permission Error',
+          description: 'Only administrators can create assignments.',
+          variant: 'destructive',
+        });
+        setAssignmentLoading(false);
+        return;
+      }
+      
       const { data: existingAssignment, error: checkError } = await supabase
         .from('permanent_assignments')
         .select('*')
@@ -155,21 +184,15 @@ const Admin = () => {
         return;
       }
       
-      // Get the user's auth token for permission checking
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('You must be logged in to create assignments');
-      }
-      
       console.log('Creating assignment with values:', {
         user_id: selectedUser,
         bay_id: selectedBay,
         day_of_week: dayOfWeek,
-        created_by: user?.user_id
+        created_by: user?.user_id,
+        currentAuthUid: session?.user?.id
       });
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('permanent_assignments')
         .insert({
           user_id: selectedUser,
@@ -181,16 +204,27 @@ const Admin = () => {
       if (error) {
         console.error('Error creating assignment:', error);
         
-        // Check for policy errors
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        
         if (error.message.includes('policy') || error.code === 'PGRST301') {
           toast({
             title: 'Permission Error',
-            description: 'You don\'t have permission to create assignments. Only admins can perform this action.',
+            description: 'You don\'t have permission to create assignments. Error code: ' + error.code,
             variant: 'destructive',
           });
         } else {
-          throw error;
+          toast({
+            title: 'Error',
+            description: `Failed to create assignment: ${error.message || 'Unknown error'}`,
+            variant: 'destructive',
+          });
         }
+        setAssignmentLoading(false);
         return;
       }
       
