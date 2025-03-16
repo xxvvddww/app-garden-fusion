@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { format, addDays } from 'date-fns';
+import { format, addDays, isAfter, eachDayOfInterval } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -23,7 +23,8 @@ const MyBay = () => {
   const [selectedBay, setSelectedBay] = useState<Bay | null>(null);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
   const [availabilityOption, setAvailabilityOption] = useState<'today' | 'tomorrow' | 'custom'>('today');
-  const [dateRange, setDateRange] = useState<Date | undefined>(undefined);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('permanent');
   const { toast } = useToast();
@@ -125,7 +126,8 @@ const MyBay = () => {
     setSelectedBay(bay);
     setAvailabilityDialogOpen(true);
     setAvailabilityOption('today');
-    setDateRange(undefined);
+    setStartDate(undefined);
+    setEndDate(undefined);
   };
 
   const makeAvailable = async () => {
@@ -142,8 +144,23 @@ const MyBay = () => {
         dates = [format(now, 'yyyy-MM-dd')];
       } else if (availabilityOption === 'tomorrow') {
         dates = [format(addDays(now, 1), 'yyyy-MM-dd')];
-      } else if (availabilityOption === 'custom' && dateRange) {
-        dates = [format(dateRange, 'yyyy-MM-dd')];
+      } else if (availabilityOption === 'custom') {
+        if (startDate && !endDate) {
+          // Single date selected
+          dates = [format(startDate, 'yyyy-MM-dd')];
+        } else if (startDate && endDate) {
+          // Date range selected
+          // Get all dates in the range
+          const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
+          dates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
+        } else {
+          toast({
+            title: 'Error',
+            description: 'Please select valid date(s)',
+            variant: 'destructive',
+          });
+          return;
+        }
       }
       
       if (dates.length === 0) {
@@ -295,22 +312,36 @@ const MyBay = () => {
             <ToggleGroup 
               type="single" 
               value={availabilityOption} 
-              onValueChange={(value) => value && setAvailabilityOption(value as 'today' | 'tomorrow' | 'custom')}
+              onValueChange={(value) => {
+                if (value) {
+                  setAvailabilityOption(value as 'today' | 'tomorrow' | 'custom');
+                  // Reset date selections when changing options
+                  setStartDate(undefined);
+                  setEndDate(undefined);
+                }
+              }}
               className="justify-start"
             >
               <ToggleGroupItem value="today">Today</ToggleGroupItem>
               <ToggleGroupItem value="tomorrow">Tomorrow</ToggleGroupItem>
-              <ToggleGroupItem value="custom">Custom Date</ToggleGroupItem>
+              <ToggleGroupItem value="custom">Custom Date(s)</ToggleGroupItem>
             </ToggleGroup>
             
             {availabilityOption === 'custom' && (
               <div className="border rounded-md p-2">
                 <Calendar
-                  mode="single"
-                  selected={dateRange}
-                  onSelect={setDateRange}
+                  mode="range"
+                  selected={{
+                    from: startDate,
+                    to: endDate,
+                  }}
+                  onSelect={(range) => {
+                    setStartDate(range?.from);
+                    setEndDate(range?.to);
+                  }}
                   initialFocus
                   disabled={(date) => date < new Date()}
+                  className="pointer-events-auto"
                 />
               </div>
             )}
