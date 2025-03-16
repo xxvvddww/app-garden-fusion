@@ -15,8 +15,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     debug: true // Enable debug mode to log authentication issues
   },
   global: {
-    fetch: (...args) => {
-      return fetch(...args);
+    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+      return fetch(url, options);
     }
   }
 });
