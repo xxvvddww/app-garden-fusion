@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -154,6 +155,13 @@ const Admin = () => {
         return;
       }
       
+      // Get the user's auth token for permission checking
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('You must be logged in to create assignments');
+      }
+      
       console.log('Creating assignment with values:', {
         user_id: selectedUser,
         bay_id: selectedBay,
@@ -172,7 +180,18 @@ const Admin = () => {
       
       if (error) {
         console.error('Error creating assignment:', error);
-        throw error;
+        
+        // Check for policy errors
+        if (error.message.includes('policy') || error.code === 'PGRST301') {
+          toast({
+            title: 'Permission Error',
+            description: 'You don\'t have permission to create assignments. Only admins can perform this action.',
+            variant: 'destructive',
+          });
+        } else {
+          throw error;
+        }
+        return;
       }
       
       toast({
