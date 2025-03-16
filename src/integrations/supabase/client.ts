@@ -11,6 +11,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'bay-management-auth-token' // Adding a specific storage key for clarity
+    storageKey: 'bay-management-auth-token', // Adding a specific storage key for clarity
+    debug: true // Enable debug mode to log authentication issues
   }
 });

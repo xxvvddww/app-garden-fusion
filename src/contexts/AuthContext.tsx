@@ -11,6 +11,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -154,6 +155,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUserData = async () => {
+    if (session) {
+      await fetchUserProfile(session.user.id);
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Signing in with email:", email);
@@ -200,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signIn,
     signOut,
+    refreshUserData
   };
   
   console.log("Auth context value:", {

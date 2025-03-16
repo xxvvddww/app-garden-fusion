@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   UserCog, 
   ParkingSquare, 
@@ -36,8 +38,16 @@ const Admin = () => {
   const [bays, setBays] = useState<Bay[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedBay, setSelectedBay] = useState<string | null>(null);
-  const [dayOfWeek, setDayOfWeek] = useState<string | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [selectedDays, setSelectedDays] = useState({
+    Monday: false,
+    Tuesday: false,
+    Wednesday: false,
+    Thursday: false,
+    Friday: false,
+    Saturday: false,
+    Sunday: false
+  });
 
   useEffect(() => {
     fetchStats();
@@ -93,6 +103,17 @@ const Admin = () => {
   const handleNavigateToUsers = () => navigate('/users');
   const handleNavigateToBays = () => navigate('/bays');
   
+  const handleDayChange = (day: keyof typeof selectedDays) => {
+    setSelectedDays(prev => ({
+      ...prev,
+      [day]: !prev[day]
+    }));
+  };
+
+  const areAnyDaysSelected = () => {
+    return Object.values(selectedDays).some(selected => selected);
+  };
+  
   const handleOpenAssignmentDialog = async () => {
     try {
       const [usersResponse, baysResponse] = await Promise.all([
@@ -109,6 +130,17 @@ const Admin = () => {
       setUsers(typedUsers);
       setBays(typedBays);
       setOpenAssignmentDialog(true);
+      
+      // Reset selected days
+      setSelectedDays({
+        Monday: false,
+        Tuesday: false,
+        Wednesday: false,
+        Thursday: false,
+        Friday: false,
+        Saturday: false,
+        Sunday: false
+      });
     } catch (error) {
       console.error('Error fetching data for assignments:', error);
       toast({
@@ -120,10 +152,10 @@ const Admin = () => {
   };
   
   const handleCreateAssignment = async () => {
-    if (!selectedUser || !selectedBay || !dayOfWeek) {
+    if (!selectedUser || !selectedBay || !areAnyDaysSelected()) {
       toast({
         title: 'Validation Error',
-        description: 'Please select a user, bay, and day of the week',
+        description: 'Please select a user, bay, and at least one day of the week',
         variant: 'destructive',
       });
       return;
@@ -136,7 +168,8 @@ const Admin = () => {
         user, 
         session, 
         hasSessionObject: !!session,
-        accessToken: session?.access_token?.substring(0, 10) + '...' 
+        accessToken: session?.access_token?.substring(0, 10) + '...',
+        selectedDays
       });
       
       if (!session) {
@@ -161,48 +194,65 @@ const Admin = () => {
         return;
       }
       
-      const { data: existingAssignment, error: checkError } = await supabase
-        .from('permanent_assignments')
-        .select('*')
-        .eq('user_id', selectedUser)
-        .eq('bay_id', selectedBay)
-        .eq('day_of_week', dayOfWeek)
-        .maybeSingle();
+      // Get selected days
+      const daysToAssign = Object.entries(selectedDays)
+        .filter(([_, isSelected]) => isSelected)
+        .map(([day]) => day);
       
-      if (checkError) {
-        console.error('Error checking existing assignment:', checkError);
-        throw checkError;
-      }
+      console.log('Creating assignments for days:', daysToAssign);
       
-      if (existingAssignment) {
+      // Check for existing assignments
+      const existingAssignmentsPromises = daysToAssign.map(day => 
+        supabase
+          .from('permanent_assignments')
+          .select('*')
+          .eq('user_id', selectedUser)
+          .eq('bay_id', selectedBay)
+          .eq('day_of_week', day)
+          .maybeSingle()
+      );
+      
+      const existingResults = await Promise.all(existingAssignmentsPromises);
+      
+      // Filter out days that already have assignments
+      const daysWithExistingAssignments = daysToAssign.filter((day, index) => 
+        existingResults[index].data !== null
+      );
+      
+      const daysToCreate = daysToAssign.filter((day, index) => 
+        existingResults[index].data === null
+      );
+      
+      if (daysWithExistingAssignments.length > 0) {
+        console.log('These days already have assignments:', daysWithExistingAssignments);
         toast({
-          title: 'Assignment Exists',
-          description: 'This assignment already exists',
-          variant: 'destructive',
+          title: 'Some Assignments Exist',
+          description: `Assignments already exist for: ${daysWithExistingAssignments.join(', ')}`,
+          variant: 'warning',
         });
-        setAssignmentLoading(false);
-        return;
+        
+        if (daysToCreate.length === 0) {
+          setAssignmentLoading(false);
+          return;
+        }
       }
       
-      console.log('Creating assignment with values:', {
+      // Prepare data for insert
+      const assignmentsToCreate = daysToCreate.map(day => ({
         user_id: selectedUser,
         bay_id: selectedBay,
-        day_of_week: dayOfWeek,
-        created_by: user?.user_id,
-        currentAuthUid: session?.user?.id
-      });
+        day_of_week: day,
+        created_by: user?.user_id
+      }));
+      
+      console.log('Creating assignments with values:', assignmentsToCreate);
       
       const { data, error } = await supabase
         .from('permanent_assignments')
-        .insert({
-          user_id: selectedUser,
-          bay_id: selectedBay,
-          day_of_week: dayOfWeek,
-          created_by: user?.user_id
-        });
+        .insert(assignmentsToCreate);
       
       if (error) {
-        console.error('Error creating assignment:', error);
+        console.error('Error creating assignments:', error);
         
         console.error('Error details:', {
           code: error.code,
@@ -220,7 +270,7 @@ const Admin = () => {
         } else {
           toast({
             title: 'Error',
-            description: `Failed to create assignment: ${error.message || 'Unknown error'}`,
+            description: `Failed to create assignments: ${error.message || 'Unknown error'}`,
             variant: 'destructive',
           });
         }
@@ -230,7 +280,7 @@ const Admin = () => {
       
       toast({
         title: 'Success',
-        description: 'Permanent assignment created successfully',
+        description: `Created ${daysToCreate.length} permanent assignment(s) successfully`,
       });
       
       fetchStats();
@@ -238,12 +288,20 @@ const Admin = () => {
       
       setSelectedUser(null);
       setSelectedBay(null);
-      setDayOfWeek(null);
+      setSelectedDays({
+        Monday: false,
+        Tuesday: false,
+        Wednesday: false,
+        Thursday: false,
+        Friday: false,
+        Saturday: false,
+        Sunday: false
+      });
     } catch (error: any) {
-      console.error('Error creating assignment:', error);
+      console.error('Error creating assignments:', error);
       toast({
         title: 'Error',
-        description: `Failed to create assignment: ${error.message || 'Unknown error'}`,
+        description: `Failed to create assignments: ${error.message || 'Unknown error'}`,
         variant: 'destructive',
       });
     } finally {
@@ -374,9 +432,9 @@ const Admin = () => {
       <Dialog open={openAssignmentDialog} onOpenChange={setOpenAssignmentDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Create Permanent Assignment</DialogTitle>
+            <DialogTitle>Create Permanent Assignments</DialogTitle>
             <DialogDescription>
-              Assign a bay to a user for a specific day of the week.
+              Assign a bay to a user for multiple days of the week.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -417,29 +475,24 @@ const Admin = () => {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="day">Day of Week</Label>
-              <Select
-                value={dayOfWeek || ""}
-                onValueChange={setDayOfWeek}
-              >
-                <SelectTrigger id="day">
-                  <SelectValue placeholder="Select a day" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Monday">Monday</SelectItem>
-                  <SelectItem value="Tuesday">Tuesday</SelectItem>
-                  <SelectItem value="Wednesday">Wednesday</SelectItem>
-                  <SelectItem value="Thursday">Thursday</SelectItem>
-                  <SelectItem value="Friday">Friday</SelectItem>
-                  <SelectItem value="Saturday">Saturday</SelectItem>
-                  <SelectItem value="Sunday">Sunday</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Days of Week</Label>
+              <div className="grid grid-cols-1 gap-2">
+                {Object.keys(selectedDays).map((day) => (
+                  <div key={day} className="flex items-center space-x-2">
+                    <Checkbox 
+                      id={`day-${day}`} 
+                      checked={selectedDays[day as keyof typeof selectedDays]} 
+                      onCheckedChange={() => handleDayChange(day as keyof typeof selectedDays)}
+                    />
+                    <Label htmlFor={`day-${day}`} className="cursor-pointer">{day}</Label>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" onClick={handleCreateAssignment} disabled={assignmentLoading}>
-              {assignmentLoading ? "Creating..." : "Create Assignment"}
+            <Button type="submit" onClick={handleCreateAssignment} disabled={assignmentLoading || !selectedUser || !selectedBay || !areAnyDaysSelected()}>
+              {assignmentLoading ? "Creating..." : "Create Assignments"}
             </Button>
           </DialogFooter>
         </DialogContent>
