@@ -49,6 +49,7 @@ const Admin = () => {
     Sunday: false
   });
   const [existingAssignments, setExistingAssignments] = useState<string[]>([]);
+  const [removedDays, setRemovedDays] = useState<string[]>([]);
 
   useEffect(() => {
     fetchStats();
@@ -71,6 +72,7 @@ const Admin = () => {
         Sunday: false
       });
       setExistingAssignments([]);
+      setRemovedDays([]);
     }
   }, [selectedUser, selectedBay]);
 
@@ -97,6 +99,7 @@ const Admin = () => {
       });
       
       setSelectedDays(updatedSelectedDays);
+      setRemovedDays([]); // Reset removed days when fetching new assignments
       
       console.log("Existing assignments:", days);
     } catch (error) {
@@ -159,14 +162,36 @@ const Admin = () => {
   const handleNavigateToBays = () => navigate('/bays');
   
   const handleDayChange = (day: keyof typeof selectedDays) => {
-    setSelectedDays(prev => ({
-      ...prev,
-      [day]: !prev[day]
-    }));
+    setSelectedDays(prev => {
+      const newSelectedDays = {
+        ...prev,
+        [day]: !prev[day]
+      };
+      
+      // If the day was previously assigned and now unchecked, add it to removedDays
+      if (existingAssignments.includes(day) && !newSelectedDays[day]) {
+        setRemovedDays(prev => [...prev, day]);
+      } 
+      // If the day was in removedDays but now checked again, remove it from removedDays
+      else if (existingAssignments.includes(day) && newSelectedDays[day]) {
+        setRemovedDays(prev => prev.filter(d => d !== day));
+      }
+      
+      return newSelectedDays;
+    });
   };
 
   const areAnyDaysSelected = () => {
     return Object.values(selectedDays).some(selected => selected);
+  };
+
+  const hasChanges = () => {
+    // Check if there are any days to add or remove
+    const daysToAssign = Object.entries(selectedDays)
+      .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
+      .map(([day]) => day);
+    
+    return daysToAssign.length > 0 || removedDays.length > 0;
   };
   
   const handleOpenAssignmentDialog = async () => {
@@ -210,11 +235,20 @@ const Admin = () => {
   };
   
   const handleCreateAssignment = async () => {
-    if (!selectedUser || !selectedBay || !areAnyDaysSelected()) {
+    if (!selectedUser || !selectedBay) {
       toast({
         title: 'Validation Error',
-        description: 'Please select a user, bay, and at least one day of the week',
+        description: 'Please select a user and bay',
         variant: 'destructive',
+      });
+      return;
+    }
+    
+    // If no changes have been made, show a message and return
+    if (!hasChanges()) {
+      toast({
+        title: 'No Changes',
+        description: 'No changes were made to the assignments',
       });
       return;
     }
@@ -227,7 +261,8 @@ const Admin = () => {
         session, 
         hasSessionObject: !!session,
         accessToken: session?.access_token?.substring(0, 10) + '...',
-        selectedDays
+        selectedDays,
+        removedDays
       });
       
       if (!session) {
@@ -257,23 +292,8 @@ const Admin = () => {
         .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
         .map(([day]) => day);
       
-      // Get days to remove (that were previously assigned but now deselected)
-      const daysToRemove = existingAssignments.filter(
-        day => !selectedDays[day as keyof typeof selectedDays]
-      );
-      
       console.log('Creating assignments for days:', daysToAssign);
-      console.log('Removing assignments for days:', daysToRemove);
-      
-      // If no changes (nothing to add or remove), show a message and return
-      if (daysToAssign.length === 0 && daysToRemove.length === 0) {
-        toast({
-          title: 'No Changes',
-          description: 'No changes were made to the assignments',
-        });
-        setAssignmentLoading(false);
-        return;
-      }
+      console.log('Removing assignments for days:', removedDays);
       
       // Prepare data for insert (new assignments)
       const assignmentsToCreate = daysToAssign.map(day => ({
@@ -296,8 +316,8 @@ const Admin = () => {
       }
       
       // Remove deselected assignments if needed
-      if (daysToRemove.length > 0) {
-        for (const day of daysToRemove) {
+      if (removedDays.length > 0) {
+        for (const day of removedDays) {
           const { error: deleteError } = await supabase
             .from('permanent_assignments')
             .delete()
@@ -332,6 +352,7 @@ const Admin = () => {
         Sunday: false
       });
       setExistingAssignments([]);
+      setRemovedDays([]);
     } catch (error: any) {
       console.error('Error managing assignments:', error);
       toast({
@@ -523,13 +544,16 @@ const Admin = () => {
                     {existingAssignments.includes(day) && (
                       <span className="text-xs text-muted-foreground ml-2">(Already assigned)</span>
                     )}
+                    {removedDays.includes(day) && (
+                      <span className="text-xs text-destructive ml-2">(Will be removed)</span>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" onClick={handleCreateAssignment} disabled={assignmentLoading || !selectedUser || !selectedBay || !areAnyDaysSelected()}>
+            <Button type="submit" onClick={handleCreateAssignment} disabled={assignmentLoading || !selectedUser || !selectedBay || !hasChanges()}>
               {assignmentLoading ? "Updating..." : "Update Assignments"}
             </Button>
           </DialogFooter>
