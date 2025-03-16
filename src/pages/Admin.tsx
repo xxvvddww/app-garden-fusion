@@ -79,7 +79,7 @@ const Admin = () => {
     try {
       const { data, error } = await supabase
         .from('permanent_assignments')
-        .select('day_of_week')
+        .select('assignment_id, day_of_week')
         .eq('user_id', selectedUser)
         .eq('bay_id', selectedBay);
       
@@ -96,7 +96,7 @@ const Admin = () => {
       setSelectedDays(updatedSelectedDays);
       setRemovedDays([]);
       
-      console.log("Existing assignments:", days);
+      console.log("Existing assignments:", data);
     } catch (error) {
       console.error('Error fetching existing assignments:', error);
       toast({
@@ -277,21 +277,14 @@ const Admin = () => {
         return;
       }
       
-      const daysToAssign = Object.entries(selectedDays)
-        .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
-        .map(([day]) => day);
-      
-      console.log('Creating assignments for days:', daysToAssign);
-      console.log('Removing assignments for days:', removedDays);
-      
-      // Handle deletions first with individual deletion for each day and better error handling
+      // Handle deletions first with individual deletion for each day
       if (removedDays.length > 0) {
         console.log('Starting deletion process for days:', removedDays);
         
         for (const day of removedDays) {
           console.log(`Attempting to delete assignment: user_id=${selectedUser}, bay_id=${selectedBay}, day_of_week=${day}`);
           
-          // First, verify the assignment exists
+          // First, find the assignment_id for this specific assignment
           const { data: assignmentToDelete, error: findError } = await supabase
             .from('permanent_assignments')
             .select('assignment_id')
@@ -317,7 +310,7 @@ const Admin = () => {
           
           console.log(`Found assignment to delete:`, assignmentToDelete);
           
-          // Perform the deletion with the specific assignment_id
+          // Now delete the specific assignment using its assignment_id
           const { error: deleteError } = await supabase
             .from('permanent_assignments')
             .delete()
@@ -335,7 +328,7 @@ const Admin = () => {
           }
         }
         
-        // Verify deletions worked
+        // Double-check that the removals worked
         const { data: remainingAssignments, error: checkError } = await supabase
           .from('permanent_assignments')
           .select('*')
@@ -363,6 +356,10 @@ const Admin = () => {
       }
       
       // Handle insertions for new assignments
+      const daysToAssign = Object.entries(selectedDays)
+        .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
+        .map(([day]) => day);
+      
       if (daysToAssign.length > 0) {
         const assignmentsToCreate = daysToAssign.map(day => ({
           user_id: selectedUser,

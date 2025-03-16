@@ -33,10 +33,37 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
       // Enhanced logging for DELETE requests
       if (options?.method === 'DELETE') {
         console.log(`DELETE Request URL: ${urlString}`);
+        
         // Extract and log query parameters for DELETE requests
-        const urlObj = new URL(urlString);
-        console.log('DELETE Query Params:', Object.fromEntries(urlObj.searchParams.entries()));
-        console.log('DELETE Headers:', options.headers);
+        try {
+          const urlObj = new URL(urlString);
+          console.log('DELETE Query Params:', Object.fromEntries(urlObj.searchParams.entries()));
+          console.log('DELETE Headers:', options.headers);
+          
+          // Log the specific table and filter being used in the delete operation
+          const pathParts = urlObj.pathname.split('/');
+          if (pathParts.length >= 4) {
+            const tableName = pathParts[pathParts.length - 1];
+            console.log(`Attempting to delete from table: ${tableName}`);
+            
+            // Extract filter conditions from query params
+            const filters = [];
+            for (const [key, value] of urlObj.searchParams.entries()) {
+              if (key.includes('.eq')) {
+                const field = key.split('.')[0];
+                filters.push(`${field} = ${value}`);
+              }
+            }
+            
+            if (filters.length > 0) {
+              console.log(`Filter conditions: ${filters.join(' AND ')}`);
+            } else {
+              console.warn('WARNING: DELETE operation with no filter conditions detected!');
+            }
+          }
+        } catch (e) {
+          console.log(`Error parsing DELETE URL: ${e}`);
+        }
       }
       
       if (options?.body) {
@@ -61,9 +88,12 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
             
             // Check if the deletion was successful based on response
             if (!response.ok) {
-              console.error(`DELETE operation failed with status ${response.status}`);
+              console.error(`DELETE operation failed with status ${response.status}: ${JSON.stringify(responseData)}`);
             } else if (responseData?.count !== undefined) {
               console.log(`DELETE operation succeeded, rows affected: ${responseData.count}`);
+              if (responseData.count === 0) {
+                console.warn('Warning: DELETE operation succeeded but no rows were affected!');
+              }
             } else {
               console.log(`DELETE operation response: ${JSON.stringify(responseData)}`);
             }
