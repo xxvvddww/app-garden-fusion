@@ -53,5 +53,29 @@ export interface Announcement {
   created_time: string;
 }
 
-// Utility type for type casting
-export type TypedSupabaseData<T> = (data: any) => T;
+// Utility functions for type casting Supabase data
+export const castToUser = (data: any): User => ({
+  ...data,
+  role: data.role as User['role'],
+  status: data.status as User['status']
+});
+
+export const castToBay = (data: any): Bay => ({
+  ...data,
+  status: data.status as Bay['status']
+});
+
+export const castToDailyClaim = (data: any): DailyClaim => ({
+  ...data,
+  status: data.status as DailyClaim['status']
+});
+
+export const castToAnnouncement = (data: any): Announcement => ({
+  ...data,
+  status: data.status as Announcement['status']
+});
+
+export const castToPermanentAssignmentWithBay = (data: any): PermanentAssignment & { bay: Bay } => ({
+  ...data,
+  bay: castToBay(data.bay)
+});

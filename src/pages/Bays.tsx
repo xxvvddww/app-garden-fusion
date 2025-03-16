@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Bay } from '@/types';
+import { Bay, castToBay } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,11 +29,7 @@ const Bays = () => {
 
       if (error) throw error;
       
-      // Cast the data to match our Bay type
-      const typedBays = (data || []).map(bay => ({
-        ...bay,
-        status: bay.status as 'Available' | 'Reserved' | 'Maintenance'
-      }));
+      const typedBays = (data || []).map(castToBay);
       
       setBays(typedBays);
     } catch (error) {

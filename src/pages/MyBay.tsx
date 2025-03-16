@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { PermanentAssignment, Bay } from '@/types';
+import { PermanentAssignment, Bay, castToPermanentAssignmentWithBay } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -35,14 +34,7 @@ const MyBay = () => {
 
       if (error) throw error;
       
-      // Type cast the nested bay data
-      const typedAssignments = (data || []).map(assignment => ({
-        ...assignment,
-        bay: {
-          ...assignment.bay,
-          status: assignment.bay.status as 'Available' | 'Reserved' | 'Maintenance'
-        }
-      }));
+      const typedAssignments = (data || []).map(castToPermanentAssignmentWithBay);
       
       setAssignments(typedAssignments);
     } catch (error) {
@@ -59,7 +51,6 @@ const MyBay = () => {
 
   const makeAvailable = async (assignmentId: string) => {
     try {
-      // Logic to mark a bay as temporarily available
       toast({
         title: 'Success',
         description: 'Your bay has been marked as available for today',

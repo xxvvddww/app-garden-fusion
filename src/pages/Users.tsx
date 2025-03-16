@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { User } from '@/types';
+import { User, castToUser } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -37,12 +36,7 @@ const Users = () => {
 
       if (error) throw error;
       
-      // Type cast the user data to match our User type
-      const typedUsers = (data || []).map(user => ({
-        ...user,
-        role: user.role as 'Admin' | 'Moderator' | 'User',
-        status: user.status as 'Active' | 'Inactive' | 'Locked' | 'Suspended'
-      }));
+      const typedUsers = (data || []).map(castToUser);
       
       setUsers(typedUsers);
     } catch (error) {
@@ -72,7 +66,6 @@ const Users = () => {
     try {
       setUpdating(true);
       
-      // Only Admin can change roles
       const updateData: { status: string; role?: string } = { status: newStatus };
       if (currentUser?.role === 'Admin') {
         updateData.role = newRole;
@@ -90,7 +83,6 @@ const Users = () => {
         description: 'User has been updated successfully',
       });
       
-      // Refresh users list
       fetchUsers();
       setUpdateDialogOpen(false);
     } catch (error) {
@@ -191,7 +183,6 @@ const Users = () => {
         ))}
       </Tabs>
       
-      {/* User Update Dialog */}
       <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

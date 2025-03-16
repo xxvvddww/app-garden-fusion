@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Bay } from '@/types';
+import { User, Bay, castToUser, castToBay } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -48,28 +47,24 @@ const Admin = () => {
     try {
       setLoading(true);
       
-      // Fetch users count
       const { count: userCount, error: userError } = await supabase
         .from('users')
         .select('*', { count: 'exact', head: true });
       
       if (userError) throw userError;
       
-      // Fetch bays count
       const { count: bayCount, error: bayError } = await supabase
         .from('bays')
         .select('*', { count: 'exact', head: true });
       
       if (bayError) throw bayError;
       
-      // Fetch assignments count
       const { count: assignmentCount, error: assignmentError } = await supabase
         .from('permanent_assignments')
         .select('*', { count: 'exact', head: true });
       
       if (assignmentError) throw assignmentError;
       
-      // Fetch claims count
       const { count: claimCount, error: claimError } = await supabase
         .from('daily_claims')
         .select('*', { count: 'exact', head: true });
@@ -94,13 +89,11 @@ const Admin = () => {
     }
   };
 
-  // Navigation handlers
   const handleNavigateToUsers = () => navigate('/users');
   const handleNavigateToBays = () => navigate('/bays');
   
   const handleOpenAssignmentDialog = async () => {
     try {
-      // Fetch users and bays for assignment
       const [usersResponse, baysResponse] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         supabase.from('bays').select('*').order('bay_number')
@@ -109,17 +102,8 @@ const Admin = () => {
       if (usersResponse.error) throw usersResponse.error;
       if (baysResponse.error) throw baysResponse.error;
       
-      // Explicitly cast the returned data to match our expected types
-      const typedUsers = (usersResponse.data || []).map(user => ({
-        ...user,
-        role: user.role as 'Admin' | 'Moderator' | 'User',
-        status: user.status as 'Active' | 'Inactive' | 'Locked' | 'Suspended'
-      }));
-      
-      const typedBays = (baysResponse.data || []).map(bay => ({
-        ...bay,
-        status: bay.status as 'Available' | 'Reserved' | 'Maintenance'
-      }));
+      const typedUsers = (usersResponse.data || []).map(castToUser);
+      const typedBays = (baysResponse.data || []).map(castToBay);
       
       setUsers(typedUsers);
       setBays(typedBays);
@@ -147,7 +131,6 @@ const Admin = () => {
     try {
       setAssignmentLoading(true);
       
-      // Check if assignment already exists
       const { data: existingAssignment, error: checkError } = await supabase
         .from('permanent_assignments')
         .select('*')
@@ -171,7 +154,6 @@ const Admin = () => {
         return;
       }
       
-      // Log the values being sent
       console.log('Creating assignment with values:', {
         user_id: selectedUser,
         bay_id: selectedBay,
@@ -179,7 +161,6 @@ const Admin = () => {
         created_by: user?.user_id
       });
       
-      // Create new assignment
       const { error } = await supabase
         .from('permanent_assignments')
         .insert({
@@ -199,11 +180,9 @@ const Admin = () => {
         description: 'Permanent assignment created successfully',
       });
       
-      // Refresh stats
       fetchStats();
       setOpenAssignmentDialog(false);
       
-      // Reset form
       setSelectedUser(null);
       setSelectedBay(null);
       setDayOfWeek(null);
@@ -339,7 +318,6 @@ const Admin = () => {
         </Card>
       </div>
       
-      {/* Assignment Dialog */}
       <Dialog open={openAssignmentDialog} onOpenChange={setOpenAssignmentDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
