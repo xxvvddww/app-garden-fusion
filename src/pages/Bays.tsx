@@ -16,6 +16,7 @@ const Bays = () => {
   const [loading, setLoading] = useState(true);
   const [selectedBay, setSelectedBay] = useState<Bay | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [userNames, setUserNames] = useState<{[key: string]: string}>({});
   const { toast } = useToast();
   const { user } = useAuth();
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -66,6 +67,28 @@ const Bays = () => {
       const permanentAssignmentsMap = new Map();
       permanentAssignmentsData.forEach(assignment => permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id));
       
+      // Collect all user IDs to fetch their names
+      const userIds = new Set<string>();
+      dailyClaimsData.forEach(claim => userIds.add(claim.user_id));
+      permanentAssignmentsData.forEach(assignment => userIds.add(assignment.user_id));
+      
+      // Fetch user names if there are any reservations
+      if (userIds.size > 0) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('user_id, name')
+          .in('user_id', Array.from(userIds));
+          
+        if (userError) throw userError;
+        
+        const namesMap: {[key: string]: string} = {};
+        userData.forEach(u => {
+          namesMap[u.user_id] = u.name;
+        });
+        
+        setUserNames(namesMap);
+      }
+      
       // Update bay status based on assignments and claims
       const updatedBays = baysData.map(bay => {
         const baseBay = castToBay(bay);
@@ -77,21 +100,25 @@ const Bays = () => {
         
         // Check if bay is claimed for today
         if (dailyClaimsMap.has(bay.bay_id)) {
-          const claimedByUser = dailyClaimsMap.get(bay.bay_id) === user?.user_id;
+          const claimedByUserId = dailyClaimsMap.get(bay.bay_id);
+          const claimedByUser = claimedByUserId === user?.user_id;
           return {
             ...baseBay,
             status: 'Reserved' as Bay['status'],
-            reserved_by_you: claimedByUser
+            reserved_by_you: claimedByUser,
+            reserved_by: claimedByUserId
           };
         }
         
         // Check if bay is permanently assigned for today
         if (permanentAssignmentsMap.has(bay.bay_id)) {
-          const assignedToUser = permanentAssignmentsMap.get(bay.bay_id) === user?.user_id;
+          const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
+          const assignedToUser = assignedToUserId === user?.user_id;
           return {
             ...baseBay,
             status: 'Reserved' as Bay['status'],
-            reserved_by_you: assignedToUser
+            reserved_by_you: assignedToUser,
+            reserved_by: assignedToUserId
           };
         }
         
@@ -138,10 +165,11 @@ const Bays = () => {
       <h1 className="text-3xl font-bold">Parking Bays</h1>
       
       <Tabs defaultValue="all">
-        <TabsList className="mb-6">
-          <TabsTrigger value="all">All Bays</TabsTrigger>
-          <TabsTrigger value="available">Available</TabsTrigger>
-          <TabsTrigger value="reserved">Reserved</TabsTrigger>
+        {/* Make tabs stretch across page */}
+        <TabsList className="mb-6 w-full">
+          <TabsTrigger value="all" className="flex-1">All Bays</TabsTrigger>
+          <TabsTrigger value="available" className="flex-1">Available</TabsTrigger>
+          <TabsTrigger value="reserved" className="flex-1">Reserved</TabsTrigger>
         </TabsList>
         
         {['all', 'available', 'reserved'].map((tab) => (
@@ -153,7 +181,14 @@ const Bays = () => {
                   (tab === 'available' && bay.status === 'Available') ||
                   (tab === 'reserved' && bay.status === 'Reserved')
                 )
-                .map(bay => <BayCard key={bay.bay_id} bay={bay} onClick={handleBayClick} />)
+                .map(bay => (
+                  <BayCard 
+                    key={bay.bay_id} 
+                    bay={bay} 
+                    onClick={handleBayClick}
+                    reservedByName={bay.reserved_by ? userNames[bay.reserved_by] : undefined}
+                  />
+                ))
               }
               
               {bays.filter(bay => 

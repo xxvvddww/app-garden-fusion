@@ -9,7 +9,6 @@ import {
   LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +59,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     navigate('/login');
   };
 
+  // 3. Rearranged menu order: Bays, My Bay, Admin
   const navigationItems = [
     { path: "/bays", label: "Bays" },
   ];
@@ -72,19 +72,9 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   }
 
   if (isAdmin) {
-    navigationItems.unshift({ 
-      path: "/users", 
-      label: "Users"
-    });
-    
     navigationItems.push({ 
       path: "/admin", 
       label: "Admin"
-    });
-  } else if (user && user.role === 'Moderator') {
-    navigationItems.unshift({ 
-      path: "/users", 
-      label: "Users"
     });
   }
 
@@ -110,31 +100,15 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             }
           </Button>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="https://github.com/shadcn.png" alt={user?.name || "Avatar"} />
-                  <AvatarFallback>{user?.name?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user?.name}</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user?.email}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* 5. Changed profile picture to logout icon */}
+          <Button 
+            variant="ghost" 
+            size="icon"
+            className="text-white hover:bg-slate-800"
+            onClick={handleSignOut}
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
         </div>
       </header>
 

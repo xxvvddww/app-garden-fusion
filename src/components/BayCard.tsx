@@ -7,9 +7,10 @@ import { Bay } from '@/types';
 interface BayCardProps {
   bay: Bay;
   onClick?: (bay: Bay) => void;
+  reservedByName?: string;
 }
 
-const BayCard = ({ bay, onClick }: BayCardProps) => {
+const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
   const isReservedByYou = bay.reserved_by_you === true;
 
   return (
@@ -47,6 +48,13 @@ const BayCard = ({ bay, onClick }: BayCardProps) => {
         >
           {bay.status}
         </Badge>
+        
+        {/* Add reserved by name if available */}
+        {bay.status === 'Reserved' && reservedByName && (
+          <span className="text-xs text-gray-400 mt-1 text-center truncate w-full">
+            by {reservedByName}
+          </span>
+        )}
         
         {isReservedByYou && (
           <div className="absolute top-2 right-2 flex items-center">

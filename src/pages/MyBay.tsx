@@ -9,11 +9,10 @@ import { useToast } from '@/components/ui/use-toast';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { format, addDays, isAfter, eachDayOfInterval } from 'date-fns';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import BayCard from '@/components/BayCard';
-import { CheckCircle, Calendar as CalendarIcon } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 const MyBay = () => {
   const { user } = useAuth();
@@ -26,7 +25,6 @@ const MyBay = () => {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState('permanent');
   const { toast } = useToast();
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -88,9 +86,10 @@ const MyBay = () => {
   };
 
   // Get unique bays from assignments to avoid duplicates
-  const getUniqueBays = (assignments: (PermanentAssignment & { bay: Bay })[]) => {
+  const getMyBays = () => {
     const uniqueBaysMap = new Map<string, Bay>();
     
+    // Add permanent assignment bays
     assignments.forEach(assignment => {
       if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
         uniqueBaysMap.set(assignment.bay.bay_id, {
@@ -101,13 +100,7 @@ const MyBay = () => {
       }
     });
     
-    return Array.from(uniqueBaysMap.values());
-  };
-
-  // Get unique bays from daily claims
-  const getUniqueDailyClaimBays = () => {
-    const uniqueBaysMap = new Map<string, Bay>();
-    
+    // Add daily claim bays
     dailyClaims.forEach(claim => {
       const matchingBay = assignments.find(a => a.bay.bay_id === claim.bay_id)?.bay;
       if (matchingBay && !uniqueBaysMap.has(matchingBay.bay_id)) {
@@ -239,65 +232,35 @@ const MyBay = () => {
     );
   }
 
-  const uniquePermanentBays = getUniqueBays(assignments);
-  const uniqueDailyBays = getUniqueDailyClaimBays();
+  const myBays = getMyBays();
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">My Bay</h1>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="permanent">Permanent Assignments</TabsTrigger>
-          <TabsTrigger value="daily">Daily Claims</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="permanent" className="space-y-6">
-          {uniquePermanentBays.length === 0 ? (
-            <Card>
-              <CardContent className="p-6">
-                <p className="text-center text-muted-foreground py-4">
-                  You don't have any permanently assigned parking bays
-                </p>
-                <Button variant="outline" className="w-full">Request Permanent Bay</Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {uniquePermanentBays.map(bay => (
-                <BayCard 
-                  key={bay.bay_id} 
-                  bay={bay}
-                  onClick={handleBayClick}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="daily" className="space-y-6">
-          {uniqueDailyBays.length === 0 ? (
-            <Card>
-              <CardContent className="p-6">
-                <p className="text-center text-muted-foreground py-4">
-                  You don't have any active daily bay claims
-                </p>
-                <Button variant="outline" className="w-full">Find Available Bay</Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {uniqueDailyBays.map(bay => (
-                <BayCard 
-                  key={bay.bay_id} 
-                  bay={bay}
-                  onClick={handleBayClick}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      {myBays.length === 0 ? (
+        <Card>
+          <CardContent className="p-6 flex flex-col items-center justify-center">
+            <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-center text-muted-foreground mb-4">
+              You don't have any assigned parking bays
+            </p>
+            <Button variant="outline" className="w-64" onClick={() => window.location.href = '/bays'}>
+              Find Available Bay
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {myBays.map(bay => (
+            <BayCard 
+              key={bay.bay_id} 
+              bay={bay}
+              onClick={handleBayClick}
+            />
+          ))}
+        </div>
+      )}
       
       <Dialog open={availabilityDialogOpen} onOpenChange={setAvailabilityDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { User, Bay, castToUser, castToBay } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -14,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
-  UserCog, 
   ParkingSquare, 
   CalendarClock, 
   MegaphoneIcon,
@@ -26,12 +24,6 @@ const Admin = () => {
   const { user, session } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    userCount: 0,
-    bayCount: 0,
-    assignmentCount: 0,
-    claimCount: 0
-  });
   const [openAssignmentDialog, setOpenAssignmentDialog] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [bays, setBays] = useState<Bay[]>([]);
@@ -51,8 +43,8 @@ const Admin = () => {
   const [removedDays, setRemovedDays] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchStats();
     console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
+    setLoading(false);
   }, [user, session]);
 
   useEffect(() => {
@@ -107,53 +99,6 @@ const Admin = () => {
     }
   };
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      
-      const { count: userCount, error: userError } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true });
-      
-      if (userError) throw userError;
-      
-      const { count: bayCount, error: bayError } = await supabase
-        .from('bays')
-        .select('*', { count: 'exact', head: true });
-      
-      if (bayError) throw bayError;
-      
-      const { count: assignmentCount, error: assignmentError } = await supabase
-        .from('permanent_assignments')
-        .select('*', { count: 'exact', head: true });
-      
-      if (assignmentError) throw assignmentError;
-      
-      const { count: claimCount, error: claimError } = await supabase
-        .from('daily_claims')
-        .select('*', { count: 'exact', head: true });
-      
-      if (claimError) throw claimError;
-      
-      setStats({
-        userCount: userCount || 0,
-        bayCount: bayCount || 0,
-        assignmentCount: assignmentCount || 0,
-        claimCount: claimCount || 0
-      });
-    } catch (error) {
-      console.error('Error fetching admin stats:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load admin statistics',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleNavigateToUsers = () => navigate('/users');
   const handleNavigateToBays = () => navigate('/bays');
   
   const handleDayChange = (day: keyof typeof selectedDays) => {
@@ -379,7 +324,6 @@ const Admin = () => {
       }
       
       await fetchExistingAssignments();
-      await fetchStats();
       
       toast({
         title: 'Success',
@@ -443,67 +387,13 @@ const Admin = () => {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Admin Dashboard</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{stats.userCount}</div>
-              <UserCog className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Bays</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{stats.bayCount}</div>
-              <ParkingSquare className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Permanent Assignments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{stats.assignmentCount}</div>
-              <CalendarClock className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Daily Claims</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{stats.claimCount}</div>
-              <ParkingSquare className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Management</CardTitle>
-            <CardDescription>Manage users, bays, and assignments</CardDescription>
+            <CardDescription>Manage bays and assignments</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-between" onClick={handleNavigateToUsers}>
-              <span>User Management</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
             <Button variant="outline" className="w-full justify-between" onClick={handleNavigateToBays}>
               <span>Bay Management</span>
               <ChevronRight className="h-4 w-4" />

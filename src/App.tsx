@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,7 +9,6 @@ import { ThemeProvider, ThemeContextProvider } from "@/contexts/ThemeProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import MainLayout from "@/layouts/MainLayout";
 import Login from "@/pages/Login";
-import Users from "@/pages/Users";
 import Bays from "@/pages/Bays";
 import MyBay from "@/pages/MyBay";
 import Admin from "@/pages/Admin";
@@ -76,17 +76,6 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <DefaultRedirect />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/users"
-                  element={
-                    <ProtectedRoute requiredRole="Moderator">
-                      <MainLayout>
-                        <Users />
-                      </MainLayout>
                     </ProtectedRoute>
                   }
                 />
