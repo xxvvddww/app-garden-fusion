@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -284,40 +285,58 @@ const Admin = () => {
       console.log('Creating assignments for days:', daysToAssign);
       console.log('Removing assignments for days:', removedDays);
       
-      const assignmentsToCreate = daysToAssign.map(day => ({
-        user_id: selectedUser,
-        bay_id: selectedBay,
-        day_of_week: day,
-        created_by: user?.user_id
-      }));
-      
+      // Handle deletions first with individual deletion for each day and better error handling
       if (removedDays.length > 0) {
         console.log('Starting deletion process for days:', removedDays);
         
         for (const day of removedDays) {
           console.log(`Attempting to delete assignment: user_id=${selectedUser}, bay_id=${selectedBay}, day_of_week=${day}`);
           
-          const { error, count } = await supabase
+          // First, verify the assignment exists
+          const { data: assignmentToDelete, error: findError } = await supabase
             .from('permanent_assignments')
-            .delete({ count: 'exact' })
+            .select('assignment_id')
             .eq('user_id', selectedUser)
             .eq('bay_id', selectedBay)
-            .eq('day_of_week', day);
+            .eq('day_of_week', day)
+            .maybeSingle();
           
-          console.log(`Delete operation completed with count: ${count}, error:`, error || 'none');
-          
-          if (error) {
-            console.error(`Failed to delete assignment for ${day}:`, error);
+          if (findError) {
+            console.error(`Error finding assignment to delete:`, findError);
             toast({
               title: 'Error',
-              description: `Failed to delete assignment for ${day}: ${error.message}`,
+              description: `Error finding assignment to delete: ${findError.message}`,
+              variant: 'destructive',
+            });
+            continue;
+          }
+          
+          if (!assignmentToDelete) {
+            console.log(`No assignment found for day ${day}, skipping deletion.`);
+            continue;
+          }
+          
+          console.log(`Found assignment to delete:`, assignmentToDelete);
+          
+          // Perform the deletion with the specific assignment_id
+          const { error: deleteError } = await supabase
+            .from('permanent_assignments')
+            .delete()
+            .eq('assignment_id', assignmentToDelete.assignment_id);
+          
+          if (deleteError) {
+            console.error(`Failed to delete assignment for ${day}:`, deleteError);
+            toast({
+              title: 'Error',
+              description: `Failed to delete assignment for ${day}: ${deleteError.message}`,
               variant: 'destructive',
             });
           } else {
-            console.log(`Successfully deleted ${count} assignments for ${day}`);
+            console.log(`Successfully deleted assignment for ${day}`);
           }
         }
         
+        // Verify deletions worked
         const { data: remainingAssignments, error: checkError } = await supabase
           .from('permanent_assignments')
           .select('*')
@@ -344,7 +363,15 @@ const Admin = () => {
         }
       }
       
-      if (assignmentsToCreate.length > 0) {
+      // Handle insertions for new assignments
+      if (daysToAssign.length > 0) {
+        const assignmentsToCreate = daysToAssign.map(day => ({
+          user_id: selectedUser,
+          bay_id: selectedBay,
+          day_of_week: day,
+          created_by: user?.user_id
+        }));
+        
         const { error: insertError } = await supabase
           .from('permanent_assignments')
           .insert(assignmentsToCreate);
