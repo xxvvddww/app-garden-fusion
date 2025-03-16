@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,7 +30,14 @@ const Dashboard = () => {
           .order('bay_number');
 
         if (baysError) throw baysError;
-        setBays(baysData || []);
+        
+        // Type cast bay data
+        const typedBays = (baysData || []).map(bay => ({
+          ...bay,
+          status: bay.status as 'Available' | 'Reserved' | 'Maintenance'
+        }));
+        
+        setBays(typedBays);
 
         // Fetch active claims for current day (WA timezone)
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Perth' });
@@ -40,7 +48,14 @@ const Dashboard = () => {
           .eq('status', 'Active');
 
         if (claimsError) throw claimsError;
-        setClaims(claimsData || []);
+        
+        // Type cast claims data
+        const typedClaims = (claimsData || []).map(claim => ({
+          ...claim,
+          status: claim.status as 'Active' | 'Cancelled'
+        }));
+        
+        setClaims(typedClaims);
 
         // Fetch user's permanent assignments
         if (user) {
@@ -61,7 +76,13 @@ const Dashboard = () => {
           if (announcementsError) {
             console.error('Error fetching unread announcements:', announcementsError);
           } else {
-            setUnreadAnnouncements(announcementsData || []);
+            // Type cast announcements data
+            const typedAnnouncements = (announcementsData || []).map(announcement => ({
+              ...announcement,
+              status: announcement.status as 'Active' | 'Archived'
+            }));
+            
+            setUnreadAnnouncements(typedAnnouncements);
           }
         }
       } catch (error) {

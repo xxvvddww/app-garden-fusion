@@ -29,7 +29,14 @@ const Bays = () => {
         .order('bay_number');
 
       if (error) throw error;
-      setBays(data || []);
+      
+      // Cast the data to match our Bay type
+      const typedBays = (data || []).map(bay => ({
+        ...bay,
+        status: bay.status as 'Available' | 'Reserved' | 'Maintenance'
+      }));
+      
+      setBays(typedBays);
     } catch (error) {
       console.error('Error fetching bays:', error);
       toast({

@@ -35,7 +35,16 @@ const MyBay = () => {
 
       if (error) throw error;
       
-      setAssignments(data || []);
+      // Type cast the nested bay data
+      const typedAssignments = (data || []).map(assignment => ({
+        ...assignment,
+        bay: {
+          ...assignment.bay,
+          status: assignment.bay.status as 'Available' | 'Reserved' | 'Maintenance'
+        }
+      }));
+      
+      setAssignments(typedAssignments);
     } catch (error) {
       console.error('Error fetching user assignments:', error);
       toast({

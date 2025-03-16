@@ -52,3 +52,6 @@ export interface Announcement {
   created_by: string;
   created_time: string;
 }
+
+// Utility type for type casting
+export type TypedSupabaseData<T> = (data: any) => T;

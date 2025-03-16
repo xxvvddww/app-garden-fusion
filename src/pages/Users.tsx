@@ -36,7 +36,15 @@ const Users = () => {
         .order('name');
 
       if (error) throw error;
-      setUsers(data || []);
+      
+      // Type cast the user data to match our User type
+      const typedUsers = (data || []).map(user => ({
+        ...user,
+        role: user.role as 'Admin' | 'Moderator' | 'User',
+        status: user.status as 'Active' | 'Inactive' | 'Locked' | 'Suspended'
+      }));
+      
+      setUsers(typedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({

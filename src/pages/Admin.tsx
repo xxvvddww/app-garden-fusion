@@ -109,8 +109,20 @@ const Admin = () => {
       if (usersResponse.error) throw usersResponse.error;
       if (baysResponse.error) throw baysResponse.error;
       
-      setUsers(usersResponse.data || []);
-      setBays(baysResponse.data || []);
+      // Explicitly cast the returned data to match our expected types
+      const typedUsers = (usersResponse.data || []).map(user => ({
+        ...user,
+        role: user.role as 'Admin' | 'Moderator' | 'User',
+        status: user.status as 'Active' | 'Inactive' | 'Locked' | 'Suspended'
+      }));
+      
+      const typedBays = (baysResponse.data || []).map(bay => ({
+        ...bay,
+        status: bay.status as 'Available' | 'Reserved' | 'Maintenance'
+      }));
+      
+      setUsers(typedUsers);
+      setBays(typedBays);
       setOpenAssignmentDialog(true);
     } catch (error) {
       console.error('Error fetching data for assignments:', error);
