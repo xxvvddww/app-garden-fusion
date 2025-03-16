@@ -130,8 +130,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                   className={cn(
                     "absolute bottom-0 left-0 w-full h-0.5 bg-transparent",
                     location.pathname === item.path 
-                      ? "bg-primary shadow-[0_0_8px_0px_rgba(59,130,246,0.8)] animate-pulse" 
-                      : "group-hover:bg-blue-500/30"
+                      ? "bg-purple-500 shadow-[0_0_8px_0px_rgba(139,92,246,0.8)] animate-pulse" 
+                      : "group-hover:bg-purple-500/30"
                   )}
                 />
               </Link>
