@@ -228,7 +228,7 @@ const Admin = () => {
         toast({
           title: 'Some Assignments Exist',
           description: `Assignments already exist for: ${daysWithExistingAssignments.join(', ')}`,
-          variant: 'warning',
+          variant: 'destructive', // Changed from 'warning' to 'destructive'
         });
         
         if (daysToCreate.length === 0) {
