@@ -1,4 +1,3 @@
-
 export interface User {
   user_id: string;
   email: string;
@@ -23,6 +22,7 @@ export interface Bay {
   updated_date?: string;
   created_by?: string;
   updated_by?: string;
+  reserved_by_you?: boolean;
 }
 
 export interface PermanentAssignment {
@@ -53,7 +53,6 @@ export interface Announcement {
   created_time: string;
 }
 
-// Utility functions for type casting Supabase data
 export const castToUser = (data: any): User => ({
   ...data,
   role: data.role as User['role'],
@@ -62,7 +61,8 @@ export const castToUser = (data: any): User => ({
 
 export const castToBay = (data: any): Bay => ({
   ...data,
-  status: data.status as Bay['status']
+  status: data.status as Bay['status'],
+  reserved_by_you: data.reserved_by_you || false
 });
 
 export const castToDailyClaim = (data: any): DailyClaim => ({

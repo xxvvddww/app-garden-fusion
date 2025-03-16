@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import BayCard from '@/components/BayCard';
 import ReserveBayDialog from '@/components/ReserveBayDialog';
+import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Bays = () => {
   const [bays, setBays] = useState<Bay[]>([]);
@@ -14,6 +16,9 @@ const Bays = () => {
   const [selectedBay, setSelectedBay] = useState<Bay | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
 
   useEffect(() => {
     fetchBays();
@@ -22,16 +27,81 @@ const Bays = () => {
   const fetchBays = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // 1. Fetch all bays
+      const { data: baysData, error: baysError } = await supabase
         .from('bays')
         .select('*')
         .order('bay_number');
 
-      if (error) throw error;
+      if (baysError) throw baysError;
       
-      const typedBays = (data || []).map(castToBay);
+      // 2. Get daily claims for today
+      const { data: dailyClaimsData, error: claimsError } = await supabase
+        .from('daily_claims')
+        .select('bay_id, user_id')
+        .eq('claim_date', today)
+        .eq('status', 'Active');
+        
+      if (claimsError) throw claimsError;
       
-      setBays(typedBays);
+      // 3. Get permanent assignments for today's day of week
+      const { data: permanentAssignmentsData, error: assignmentsError } = await supabase
+        .from('permanent_assignments')
+        .select('bay_id, user_id, day_of_week')
+        .or(`day_of_week.eq.${currentDayOfWeek},day_of_week.eq.All Days`);
+        
+      if (assignmentsError) throw assignmentsError;
+      
+      console.log('Today:', today);
+      console.log('Current day of week:', currentDayOfWeek);
+      console.log('Daily claims:', dailyClaimsData);
+      console.log('Permanent assignments:', permanentAssignmentsData);
+      
+      // Create maps for quick lookups
+      const dailyClaimsMap = new Map();
+      dailyClaimsData.forEach(claim => dailyClaimsMap.set(claim.bay_id, claim.user_id));
+      
+      const permanentAssignmentsMap = new Map();
+      permanentAssignmentsData.forEach(assignment => permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id));
+      
+      // Update bay status based on assignments and claims
+      const updatedBays = baysData.map(bay => {
+        const baseBay = castToBay(bay);
+        
+        // Check if bay is under maintenance - keep that status
+        if (baseBay.status === 'Maintenance') {
+          return baseBay;
+        }
+        
+        // Check if bay is claimed for today
+        if (dailyClaimsMap.has(bay.bay_id)) {
+          const claimedByUser = dailyClaimsMap.get(bay.bay_id) === user?.user_id;
+          return {
+            ...baseBay,
+            status: 'Reserved',
+            reserved_by_you: claimedByUser
+          };
+        }
+        
+        // Check if bay is permanently assigned for today
+        if (permanentAssignmentsMap.has(bay.bay_id)) {
+          const assignedToUser = permanentAssignmentsMap.get(bay.bay_id) === user?.user_id;
+          return {
+            ...baseBay,
+            status: 'Reserved',
+            reserved_by_you: assignedToUser
+          };
+        }
+        
+        // Bay is available
+        return {
+          ...baseBay,
+          status: 'Available'
+        };
+      });
+      
+      setBays(updatedBays);
     } catch (error) {
       console.error('Error fetching bays:', error);
       toast({

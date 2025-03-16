@@ -1,5 +1,5 @@
 
-import { Car } from 'lucide-react';
+import { Car, UserCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bay } from '@/types';
@@ -10,9 +10,11 @@ interface BayCardProps {
 }
 
 const BayCard = ({ bay, onClick }: BayCardProps) => {
+  const isReservedByYou = bay.reserved_by_you === true;
+
   return (
     <Card 
-      className="bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 hover:shadow-[0_0_15px_rgba(0,255,128,0.15)] cursor-pointer"
+      className={`bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 hover:shadow-[0_0_15px_rgba(0,255,128,0.15)] cursor-pointer ${isReservedByYou ? 'border-green-500 border-2' : ''}`}
       onClick={() => onClick && onClick(bay)}
     >
       <CardContent className="flex flex-col items-center justify-center p-3 h-full">
@@ -45,6 +47,12 @@ const BayCard = ({ bay, onClick }: BayCardProps) => {
         >
           {bay.status}
         </Badge>
+        
+        {isReservedByYou && (
+          <div className="absolute top-2 right-2 flex items-center">
+            <UserCheck className="w-4 h-4 text-green-400" />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
