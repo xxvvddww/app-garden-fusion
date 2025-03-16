@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,12 +55,10 @@ const Admin = () => {
     console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
   }, [user, session]);
 
-  // Add new effect to fetch existing assignments when user and bay are selected
   useEffect(() => {
     if (selectedUser && selectedBay) {
       fetchExistingAssignments();
     } else {
-      // Reset days selection when user or bay selection changes
       setSelectedDays({
         Monday: false,
         Tuesday: false,
@@ -88,18 +85,16 @@ const Admin = () => {
       
       if (error) throw error;
       
-      // Extract the days of week from the existing assignments
       const days = data.map(item => item.day_of_week);
       setExistingAssignments(days);
       
-      // Pre-populate the selectedDays based on existing assignments
       const updatedSelectedDays = { ...selectedDays };
       Object.keys(updatedSelectedDays).forEach(day => {
         updatedSelectedDays[day as keyof typeof selectedDays] = days.includes(day);
       });
       
       setSelectedDays(updatedSelectedDays);
-      setRemovedDays([]); // Reset removed days when fetching new assignments
+      setRemovedDays([]);
       
       console.log("Existing assignments:", days);
     } catch (error) {
@@ -168,11 +163,9 @@ const Admin = () => {
         [day]: !prev[day]
       };
       
-      // If the day was previously assigned and now unchecked, add it to removedDays
       if (existingAssignments.includes(day) && !newSelectedDays[day]) {
         setRemovedDays(prev => [...prev, day]);
       } 
-      // If the day was in removedDays but now checked again, remove it from removedDays
       else if (existingAssignments.includes(day) && newSelectedDays[day]) {
         setRemovedDays(prev => prev.filter(d => d !== day));
       }
@@ -186,7 +179,6 @@ const Admin = () => {
   };
 
   const hasChanges = () => {
-    // Check if there are any days to add or remove
     const daysToAssign = Object.entries(selectedDays)
       .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
       .map(([day]) => day);
@@ -211,7 +203,6 @@ const Admin = () => {
       setBays(typedBays);
       setOpenAssignmentDialog(true);
       
-      // Reset selections
       setSelectedUser(null);
       setSelectedBay(null);
       setSelectedDays({
@@ -244,7 +235,6 @@ const Admin = () => {
       return;
     }
     
-    // If no changes have been made, show a message and return
     if (!hasChanges()) {
       toast({
         title: 'No Changes',
@@ -287,7 +277,6 @@ const Admin = () => {
         return;
       }
       
-      // Get selected days (that weren't already assigned)
       const daysToAssign = Object.entries(selectedDays)
         .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
         .map(([day]) => day);
@@ -295,7 +284,6 @@ const Admin = () => {
       console.log('Creating assignments for days:', daysToAssign);
       console.log('Removing assignments for days:', removedDays);
       
-      // Prepare data for insert (new assignments)
       const assignmentsToCreate = daysToAssign.map(day => ({
         user_id: selectedUser,
         bay_id: selectedBay,
@@ -303,7 +291,28 @@ const Admin = () => {
         created_by: user?.user_id
       }));
       
-      // Create new assignments if needed
+      if (removedDays.length > 0) {
+        console.log('Attempting to delete assignments for days:', removedDays);
+        
+        for (const day of removedDays) {
+          console.log(`Deleting assignment for day: ${day}`);
+          
+          const { error: deleteError, count } = await supabase
+            .from('permanent_assignments')
+            .delete()
+            .eq('user_id', selectedUser)
+            .eq('bay_id', selectedBay)
+            .eq('day_of_week', day);
+          
+          console.log(`Delete operation result for ${day}:`, { error: deleteError, count });
+          
+          if (deleteError) {
+            console.error(`Error removing assignment for ${day}:`, deleteError);
+            throw deleteError;
+          }
+        }
+      }
+      
       if (assignmentsToCreate.length > 0) {
         const { error: insertError } = await supabase
           .from('permanent_assignments')
@@ -315,35 +324,14 @@ const Admin = () => {
         }
       }
       
-      // Remove deselected assignments if needed
-      if (removedDays.length > 0) {
-        // Changed to use a more precise deletion approach for each day
-        for (const day of removedDays) {
-          const { error: deleteError } = await supabase
-            .from('permanent_assignments')
-            .delete()
-            .match({
-              'user_id': selectedUser,
-              'bay_id': selectedBay,
-              'day_of_week': day
-            });
-          
-          if (deleteError) {
-            console.error(`Error removing assignment for ${day}:`, deleteError);
-            throw deleteError;
-          }
-        }
-      }
-      
-      // Refetch to ensure UI is in sync with database
       await fetchExistingAssignments();
+      await fetchStats();
       
       toast({
         title: 'Success',
         description: `Updated permanent assignments successfully`,
       });
       
-      fetchStats();
       setOpenAssignmentDialog(false);
       
       setSelectedUser(null);
