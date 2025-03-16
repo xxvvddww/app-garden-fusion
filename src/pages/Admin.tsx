@@ -48,11 +48,66 @@ const Admin = () => {
     Saturday: false,
     Sunday: false
   });
+  const [existingAssignments, setExistingAssignments] = useState<string[]>([]);
 
   useEffect(() => {
     fetchStats();
     console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
   }, [user, session]);
+
+  // Add new effect to fetch existing assignments when user and bay are selected
+  useEffect(() => {
+    if (selectedUser && selectedBay) {
+      fetchExistingAssignments();
+    } else {
+      // Reset days selection when user or bay selection changes
+      setSelectedDays({
+        Monday: false,
+        Tuesday: false,
+        Wednesday: false,
+        Thursday: false,
+        Friday: false,
+        Saturday: false,
+        Sunday: false
+      });
+      setExistingAssignments([]);
+    }
+  }, [selectedUser, selectedBay]);
+
+  const fetchExistingAssignments = async () => {
+    if (!selectedUser || !selectedBay) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('permanent_assignments')
+        .select('day_of_week')
+        .eq('user_id', selectedUser)
+        .eq('bay_id', selectedBay);
+      
+      if (error) throw error;
+      
+      // Extract the days of week from the existing assignments
+      const days = data.map(item => item.day_of_week);
+      setExistingAssignments(days);
+      
+      // Pre-populate the selectedDays based on existing assignments
+      const updatedSelectedDays = { ...selectedDays };
+      Object.keys(updatedSelectedDays).forEach(day => {
+        updatedSelectedDays[day as keyof typeof selectedDays] = days.includes(day);
+      });
+      
+      setSelectedDays(updatedSelectedDays);
+      
+      console.log("Existing assignments:", days);
+    } catch (error) {
+      console.error('Error fetching existing assignments:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch existing assignments',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -131,7 +186,9 @@ const Admin = () => {
       setBays(typedBays);
       setOpenAssignmentDialog(true);
       
-      // Reset selected days
+      // Reset selections
+      setSelectedUser(null);
+      setSelectedBay(null);
       setSelectedDays({
         Monday: false,
         Tuesday: false,
@@ -141,6 +198,7 @@ const Admin = () => {
         Saturday: false,
         Sunday: false
       });
+      setExistingAssignments([]);
     } catch (error) {
       console.error('Error fetching data for assignments:', error);
       toast({
@@ -194,93 +252,69 @@ const Admin = () => {
         return;
       }
       
-      // Get selected days
+      // Get selected days (that weren't already assigned)
       const daysToAssign = Object.entries(selectedDays)
-        .filter(([_, isSelected]) => isSelected)
+        .filter(([day, isSelected]) => isSelected && !existingAssignments.includes(day))
         .map(([day]) => day);
       
+      // Get days to remove (that were previously assigned but now deselected)
+      const daysToRemove = existingAssignments.filter(
+        day => !selectedDays[day as keyof typeof selectedDays]
+      );
+      
       console.log('Creating assignments for days:', daysToAssign);
+      console.log('Removing assignments for days:', daysToRemove);
       
-      // Check for existing assignments
-      const existingAssignmentsPromises = daysToAssign.map(day => 
-        supabase
-          .from('permanent_assignments')
-          .select('*')
-          .eq('user_id', selectedUser)
-          .eq('bay_id', selectedBay)
-          .eq('day_of_week', day)
-          .maybeSingle()
-      );
-      
-      const existingResults = await Promise.all(existingAssignmentsPromises);
-      
-      // Filter out days that already have assignments
-      const daysWithExistingAssignments = daysToAssign.filter((day, index) => 
-        existingResults[index].data !== null
-      );
-      
-      const daysToCreate = daysToAssign.filter((day, index) => 
-        existingResults[index].data === null
-      );
-      
-      if (daysWithExistingAssignments.length > 0) {
-        console.log('These days already have assignments:', daysWithExistingAssignments);
+      // If no changes (nothing to add or remove), show a message and return
+      if (daysToAssign.length === 0 && daysToRemove.length === 0) {
         toast({
-          title: 'Some Assignments Exist',
-          description: `Assignments already exist for: ${daysWithExistingAssignments.join(', ')}`,
-          variant: 'destructive', // Changed from 'warning' to 'destructive'
+          title: 'No Changes',
+          description: 'No changes were made to the assignments',
         });
-        
-        if (daysToCreate.length === 0) {
-          setAssignmentLoading(false);
-          return;
-        }
+        setAssignmentLoading(false);
+        return;
       }
       
-      // Prepare data for insert
-      const assignmentsToCreate = daysToCreate.map(day => ({
+      // Prepare data for insert (new assignments)
+      const assignmentsToCreate = daysToAssign.map(day => ({
         user_id: selectedUser,
         bay_id: selectedBay,
         day_of_week: day,
         created_by: user?.user_id
       }));
       
-      console.log('Creating assignments with values:', assignmentsToCreate);
-      
-      const { data, error } = await supabase
-        .from('permanent_assignments')
-        .insert(assignmentsToCreate);
-      
-      if (error) {
-        console.error('Error creating assignments:', error);
+      // Create new assignments if needed
+      if (assignmentsToCreate.length > 0) {
+        const { error: insertError } = await supabase
+          .from('permanent_assignments')
+          .insert(assignmentsToCreate);
         
-        console.error('Error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-        
-        if (error.message.includes('policy') || error.code === 'PGRST301') {
-          toast({
-            title: 'Permission Error',
-            description: 'You don\'t have permission to create assignments. Error code: ' + error.code,
-            variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'Error',
-            description: `Failed to create assignments: ${error.message || 'Unknown error'}`,
-            variant: 'destructive',
-          });
+        if (insertError) {
+          console.error('Error creating assignments:', insertError);
+          throw insertError;
         }
-        setAssignmentLoading(false);
-        return;
+      }
+      
+      // Remove deselected assignments if needed
+      if (daysToRemove.length > 0) {
+        for (const day of daysToRemove) {
+          const { error: deleteError } = await supabase
+            .from('permanent_assignments')
+            .delete()
+            .eq('user_id', selectedUser)
+            .eq('bay_id', selectedBay)
+            .eq('day_of_week', day);
+          
+          if (deleteError) {
+            console.error(`Error removing assignment for ${day}:`, deleteError);
+            throw deleteError;
+          }
+        }
       }
       
       toast({
         title: 'Success',
-        description: `Created ${daysToCreate.length} permanent assignment(s) successfully`,
+        description: `Updated permanent assignments successfully`,
       });
       
       fetchStats();
@@ -297,11 +331,12 @@ const Admin = () => {
         Saturday: false,
         Sunday: false
       });
+      setExistingAssignments([]);
     } catch (error: any) {
-      console.error('Error creating assignments:', error);
+      console.error('Error managing assignments:', error);
       toast({
         title: 'Error',
-        description: `Failed to create assignments: ${error.message || 'Unknown error'}`,
+        description: `Failed to update assignments: ${error.message || 'Unknown error'}`,
         variant: 'destructive',
       });
     } finally {
@@ -432,9 +467,9 @@ const Admin = () => {
       <Dialog open={openAssignmentDialog} onOpenChange={setOpenAssignmentDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Create Permanent Assignments</DialogTitle>
+            <DialogTitle>Manage Permanent Assignments</DialogTitle>
             <DialogDescription>
-              Assign a bay to a user for multiple days of the week.
+              Assign a bay to a user for specific days of the week. Check or uncheck days to update assignments.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -485,6 +520,9 @@ const Admin = () => {
                       onCheckedChange={() => handleDayChange(day as keyof typeof selectedDays)}
                     />
                     <Label htmlFor={`day-${day}`} className="cursor-pointer">{day}</Label>
+                    {existingAssignments.includes(day) && (
+                      <span className="text-xs text-muted-foreground ml-2">(Already assigned)</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -492,7 +530,7 @@ const Admin = () => {
           </div>
           <DialogFooter>
             <Button type="submit" onClick={handleCreateAssignment} disabled={assignmentLoading || !selectedUser || !selectedBay || !areAnyDaysSelected()}>
-              {assignmentLoading ? "Creating..." : "Create Assignments"}
+              {assignmentLoading ? "Updating..." : "Update Assignments"}
             </Button>
           </DialogFooter>
         </DialogContent>
