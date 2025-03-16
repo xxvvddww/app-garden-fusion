@@ -49,11 +49,13 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
           {bay.status}
         </Badge>
         
-        {/* Add reserved by name if available */}
+        {/* Show reserved by name if available */}
         {bay.status === 'Reserved' && reservedByName && (
-          <span className="text-xs text-gray-400 mt-1 text-center truncate w-full">
-            by {reservedByName}
-          </span>
+          <div className="mt-1 text-center">
+            <span className="text-xs text-gray-400 truncate w-full block">
+              by {reservedByName}
+            </span>
+          </div>
         )}
         
         {isReservedByYou && (

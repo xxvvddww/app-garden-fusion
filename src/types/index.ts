@@ -1,3 +1,4 @@
+
 export interface User {
   user_id: string;
   email: string;
@@ -23,6 +24,7 @@ export interface Bay {
   created_by?: string;
   updated_by?: string;
   reserved_by_you?: boolean;
+  reserved_by?: string;
 }
 
 export interface PermanentAssignment {
@@ -62,7 +64,8 @@ export const castToUser = (data: any): User => ({
 export const castToBay = (data: any): Bay => ({
   ...data,
   status: data.status as Bay['status'],
-  reserved_by_you: data.reserved_by_you || false
+  reserved_by_you: data.reserved_by_you || false,
+  reserved_by: data.reserved_by || undefined
 });
 
 export const castToDailyClaim = (data: any): DailyClaim => ({
