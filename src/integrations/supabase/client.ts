@@ -23,10 +23,22 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     },
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
       // Add custom logging for debugging database requests
-      console.log(`Supabase request to: ${typeof url === 'string' ? url : url.toString()}`);
+      const urlString = typeof url === 'string' ? url : url.toString();
+      console.log(`Supabase request to: ${urlString}`);
+      
       if (options?.method) {
         console.log(`Method: ${options.method}`);
       }
+      
+      // Enhanced logging for DELETE requests
+      if (options?.method === 'DELETE') {
+        console.log(`DELETE Request URL: ${urlString}`);
+        // Extract and log query parameters for DELETE requests
+        const urlObj = new URL(urlString);
+        console.log('DELETE Query Params:', Object.fromEntries(urlObj.searchParams.entries()));
+        console.log('DELETE Headers:', options.headers);
+      }
+      
       if (options?.body) {
         try {
           console.log(`Request body: ${JSON.stringify(JSON.parse(options.body as string), null, 2)}`);
@@ -41,12 +53,40 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
         
         try {
           const responseData = await clonedResponse.json();
-          console.log(`Supabase response: ${JSON.stringify(responseData, null, 2)}`);
+          console.log(`Supabase response status: ${response.status} ${response.statusText}`);
+          
+          // Special handling for DELETE operations
+          if (options?.method === 'DELETE') {
+            console.log(`DELETE response: ${JSON.stringify(responseData, null, 2)}`);
+            
+            // Check if the deletion was successful based on response
+            if (!response.ok) {
+              console.error(`DELETE operation failed with status ${response.status}`);
+            } else if (responseData?.count !== undefined) {
+              console.log(`DELETE operation succeeded, rows affected: ${responseData.count}`);
+            } else {
+              console.log(`DELETE operation response: ${JSON.stringify(responseData)}`);
+            }
+          } else {
+            console.log(`Supabase response: ${JSON.stringify(responseData, null, 2)}`);
+          }
         } catch (e) {
           console.log(`Could not parse response as JSON: ${e}`);
+          console.log(`Response status: ${response.status} ${response.statusText}`);
+          
+          // Try to at least log the text response
+          try {
+            const textResponse = await response.clone().text();
+            console.log(`Response text: ${textResponse}`);
+          } catch (textError) {
+            console.log(`Could not get response text: ${textError}`);
+          }
         }
         
         return response;
+      }).catch(error => {
+        console.error(`Network error in Supabase request to ${urlString}:`, error);
+        throw error;
       });
     }
   }

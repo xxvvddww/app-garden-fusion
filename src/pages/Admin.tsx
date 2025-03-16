@@ -297,9 +297,9 @@ const Admin = () => {
         for (const day of removedDays) {
           console.log(`Attempting to delete assignment: user_id=${selectedUser}, bay_id=${selectedBay}, day_of_week=${day}`);
           
-          const { data, error, count } = await supabase
+          const { error, count } = await supabase
             .from('permanent_assignments')
-            .delete({ returning: 'minimal', count: 'exact' })
+            .delete({ count: 'exact' })
             .eq('user_id', selectedUser)
             .eq('bay_id', selectedBay)
             .eq('day_of_week', day);
