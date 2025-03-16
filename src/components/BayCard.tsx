@@ -53,7 +53,7 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
         {bay.status === 'Reserved' && reservedByName && (
           <div className="mt-1 w-full text-center">
             <span className="text-[10px] text-gray-400 truncate w-full block">
-              by {reservedByName}
+              {reservedByName}
             </span>
           </div>
         )}
