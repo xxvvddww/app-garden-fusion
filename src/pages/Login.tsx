@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/components/ui/use-toast';
 import SignupForm from '@/components/SignupForm';
+import { hasPotentialSession, refreshSession } from '@/integrations/supabase/client';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -28,6 +29,7 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [redirectAttempts, setRedirectAttempts] = useState(0);
+  const [isRefreshingSession, setIsRefreshingSession] = useState(false);
 
   // Get the intended destination from location state, or default to '/'
   const from = location.state?.from?.pathname || '/';
@@ -40,6 +42,30 @@ const Login = () => {
     },
   });
 
+  // Try to refresh session when component mounts if there might be a session
+  useEffect(() => {
+    const trySessionRefresh = async () => {
+      // Only try to refresh if:
+      // 1. We don't already have a user
+      // 2. We're not already loading auth state
+      // 3. We potentially have a session in storage
+      if (!user && !loading && !isRefreshingSession && hasPotentialSession()) {
+        console.log("Login page attempting session refresh on mount");
+        setIsRefreshingSession(true);
+        
+        try {
+          await refreshSession();
+        } catch (error) {
+          console.error("Error refreshing session on login page mount:", error);
+        } finally {
+          setIsRefreshingSession(false);
+        }
+      }
+    };
+    
+    trySessionRefresh();
+  }, [user, loading]);
+
   // Effect for redirection logic
   useEffect(() => {
     const redirectIfAuthenticated = () => {
@@ -47,10 +73,11 @@ const Login = () => {
         user, 
         loading, 
         session, 
-        redirectAttempts 
+        redirectAttempts,
+        isRefreshingSession
       });
       
-      if (!loading) {
+      if (!loading && !isRefreshingSession) {
         if (user && session) {
           console.log("User is authenticated, redirecting to:", from);
           navigate(from, { replace: true });
@@ -65,7 +92,30 @@ const Login = () => {
     };
     
     redirectIfAuthenticated();
-  }, [user, loading, session, navigate, from, redirectAttempts]);
+  }, [user, loading, session, navigate, from, redirectAttempts, isRefreshingSession]);
+
+  // Handle visibility change to refresh session when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && !user && !loading && !isRefreshingSession) {
+        console.log("Login page visible, checking for session");
+        setIsRefreshingSession(true);
+        try {
+          await refreshSession();
+        } catch (error) {
+          console.error("Error refreshing session on visibility change:", error);
+        } finally {
+          setIsRefreshingSession(false);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, loading]);
 
   const onSubmit = async (values: LoginFormValues) => {
     if (isSubmitting) return;
@@ -107,13 +157,13 @@ const Login = () => {
   };
 
   // Immediate redirect if the user is already authenticated
-  if (!loading && user && session) {
+  if (!loading && !isRefreshingSession && user && session) {
     console.log("User is already authenticated, redirecting immediately");
     return <Navigate to={from} replace />;
   }
 
   // Show loading state while authentication is being checked
-  if (loading) {
+  if (loading || isRefreshingSession) {
     console.log("Auth is loading, showing loading state");
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">

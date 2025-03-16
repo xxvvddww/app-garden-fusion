@@ -3,7 +3,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase, refreshSession } from '@/integrations/supabase/client';
+import { supabase, refreshSession, hasPotentialSession } from '@/integrations/supabase/client';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -26,25 +26,32 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       loading, 
       currentPath: location.pathname,
       hasCheckedAuth,
-      refreshAttempts
+      refreshAttempts,
+      isRefreshing
     });
 
     // Set hasCheckedAuth to true once loading is complete
     if (!loading && !hasCheckedAuth) {
       setHasCheckedAuth(true);
     }
-  }, [user, session, loading, location, hasCheckedAuth, refreshAttempts]);
+  }, [user, session, loading, location, hasCheckedAuth, refreshAttempts, isRefreshing]);
 
-  // Force a session refresh on component mount
+  // Immediately try to refresh session on mount if there might be a valid session
   useEffect(() => {
     const trySessionRefresh = async () => {
-      if (!user && !loading && refreshAttempts < 3) {
+      if (!user && !loading && refreshAttempts < 3 && hasPotentialSession()) {
         setIsRefreshing(true);
         try {
-          console.log(`Attempting session refresh (attempt ${refreshAttempts + 1})`);
-          await refreshSession();
+          console.log(`Attempting session refresh on ProtectedRoute mount (attempt ${refreshAttempts + 1})`);
+          const result = await refreshSession();
+          console.log("Session refresh result:", {
+            hasSession: !!result.data.session,
+            hasError: !!result.error
+          });
+          
           // After refreshing, update user data in Auth context
-          if (refreshUserData) {
+          if (result.data.session && refreshUserData) {
+            console.log("Session exists, refreshing user data");
             await refreshUserData();
           }
         } catch (error) {
@@ -56,10 +63,10 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       }
     };
     
-    if (hasCheckedAuth && !user && !loading) {
+    if (hasCheckedAuth && !user && !loading && !isRefreshing) {
       trySessionRefresh();
     }
-  }, [hasCheckedAuth, user, loading, refreshAttempts, refreshUserData]);
+  }, [hasCheckedAuth, user, loading, refreshAttempts, refreshUserData, isRefreshing]);
 
   // When returning from background on mobile, this helps re-validate auth status
   useEffect(() => {
@@ -67,22 +74,25 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       if (document.visibilityState === 'visible') {
         console.log('App visible, rechecking auth state in ProtectedRoute');
         
-        // First check if we already have a session
-        const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          console.log("Session found on visibility change:", { 
-            userId: data.session.user.id,
-            hasAccessToken: !!data.session.access_token 
-          });
-          
-          // If we have a session but no user data, force a refresh
-          if (!user && refreshUserData) {
-            console.log("We have a session but no user data, refreshing user data");
-            await refreshUserData();
+        if (!user && !session && !loading && !isRefreshing && hasPotentialSession()) {
+          setIsRefreshing(true);
+          try {
+            console.log("Attempting to refresh session on visibility change");
+            const result = await refreshSession();
+            
+            // If we have a session but no user data, force a refresh
+            if (result.data.session && refreshUserData) {
+              console.log("Session exists after visibility change, refreshing user data");
+              await refreshUserData();
+            }
+          } catch (error) {
+            console.error("Error refreshing session on visibility change:", error);
+          } finally {
+            setIsRefreshing(false);
           }
-        } else if (!user) {
-          console.log("No session found on visibility change, redirecting to login");
-          navigate('/login', { replace: true });
+        } else if (!user && !session) {
+          console.log("No session potential on visibility change, redirecting to login");
+          navigate('/login', { replace: true, state: { from: location } });
         }
       }
     };
@@ -91,7 +101,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session, user, navigate, refreshUserData]);
+  }, [session, user, navigate, refreshUserData, location, loading, isRefreshing]);
 
   // Show enhanced loading state when refreshing session
   if (loading || isRefreshing) {
