@@ -93,3 +93,17 @@
 .action-button {
   @apply bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors;
 }
+
+/* Glowing effect for navigation */
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.9), 0 0 15px rgba(59, 130, 246, 0.5);
+  }
+}
+
+.animate-pulse {
+  animation: glow 2s ease-in-out infinite;
+}

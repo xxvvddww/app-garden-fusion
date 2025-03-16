@@ -100,7 +100,6 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             }
           </Button>
           
-          {/* 5. Changed profile picture to logout icon */}
           <Button 
             variant="ghost" 
             size="icon"
@@ -120,13 +119,21 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "px-4 py-3 flex items-center text-sm font-medium transition-colors",
+                  "px-4 py-3 flex items-center text-sm font-medium transition-colors relative group",
                   location.pathname === item.path 
-                    ? "border-b-2 border-primary text-white" 
-                    : "text-slate-400 hover:text-white border-b-2 border-transparent"
+                    ? "text-white" 
+                    : "text-slate-400 hover:text-white"
                 )}
               >
                 {item.label}
+                <span 
+                  className={cn(
+                    "absolute bottom-0 left-0 w-full h-0.5 bg-transparent",
+                    location.pathname === item.path 
+                      ? "bg-primary shadow-[0_0_8px_0px_rgba(59,130,246,0.8)] animate-pulse" 
+                      : "group-hover:bg-blue-500/30"
+                  )}
+                />
               </Link>
             ))}
           </nav>
