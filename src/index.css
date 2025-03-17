@@ -122,19 +122,31 @@
   animation: flow-glow 3s infinite;
 }
 
-/* Rotating border animation for available bays */
+/* Rotating border animation for available bays - improved for smoother motion */
 @keyframes border-rotate {
   0% {
     border-image-source: linear-gradient(0deg, #5B3A95, #2563EB);
   }
+  12.5% {
+    border-image-source: linear-gradient(45deg, #5B3A95, #2563EB);
+  }
   25% {
     border-image-source: linear-gradient(90deg, #5B3A95, #2563EB);
+  }
+  37.5% {
+    border-image-source: linear-gradient(135deg, #5B3A95, #2563EB);
   }
   50% {
     border-image-source: linear-gradient(180deg, #5B3A95, #2563EB);
   }
+  62.5% {
+    border-image-source: linear-gradient(225deg, #5B3A95, #2563EB);
+  }
   75% {
     border-image-source: linear-gradient(270deg, #5B3A95, #2563EB);
+  }
+  87.5% {
+    border-image-source: linear-gradient(315deg, #5B3A95, #2563EB);
   }
   100% {
     border-image-source: linear-gradient(360deg, #5B3A95, #2563EB);
@@ -146,10 +158,12 @@
   border: 1px solid transparent;
   border-radius: 0.75rem;
   background-clip: padding-box;
-  animation: border-rotate 4s linear infinite;
+  animation: border-rotate 6s linear infinite;
   border-image-slice: 1;
   box-shadow: 0 0 6px rgba(91, 58, 149, 0.3);
   overflow: hidden;
+  will-change: border-image-source;
+  transform: translateZ(0);
 }
 
 .bay-border-glow::before {
@@ -162,7 +176,9 @@
   background: linear-gradient(45deg, #5B3A95, #2563EB);
   border-radius: 0.75rem;
   z-index: -1;
-  animation: border-rotate 4s linear infinite;
+  animation: border-rotate 6s linear infinite;
   opacity: 0.4;
   margin: -1px;
+  will-change: background;
+  transform: translateZ(0);
 }
