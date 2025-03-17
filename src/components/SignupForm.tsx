@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/components/ui/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -30,6 +32,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -44,6 +47,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
 
   const onSubmit = async (values: SignupFormValues) => {
     setIsSubmitting(true);
+    setErrorMessage(null);
     
     try {
       console.log("Starting signup process with values:", values);
@@ -62,6 +66,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       });
 
       if (error) {
+        setErrorMessage(error.message);
         toast({
           title: 'Signup failed',
           description: error.message,
@@ -75,75 +80,101 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         console.log("Auth user created successfully:", data.user.id);
         console.log("User metadata:", data.user.user_metadata);
         
-        // Sign in the user temporarily to allow them to insert their own record
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: values.email,
-          password: values.password,
-        });
+        // Added delay to ensure auth state propagates
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
-        if (signInError) {
-          console.error('Error signing in after signup:', signInError);
-        } else {
-          console.log("User signed in temporarily to create profile");
-        }
-        
-        // Add a delay to ensure auth state is processed
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Insert user record with the user themselves authenticated
-        // EXPLICITLY set role to 'User' and status to 'Pending'
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            user_id: data.user.id,
-            email: values.email,
-            name: values.name,
-            mobile_number: values.mobileNumber,
-            tsa_id: values.tsaId,
-            status: 'Pending',  // Make sure status is 'Pending'
-            role: 'User'        // Make sure role is 'User'
-          });
-
-        console.log("Insert response:", { error: insertError });
-
-        if (insertError) {
-          console.error('Error inserting user details:', insertError);
-          
-          // Check if a user record was created anyway (by trigger)
-          const { data: userCheck } = await supabase
+        try {
+          // Insert directly without signing in first - this relies on the RLS policy we created
+          const { error: insertError } = await supabase
             .from('users')
-            .select('*')
-            .eq('user_id', data.user.id)
-            .single();
-            
-          console.log("User check result:", userCheck);
-            
-          if (!userCheck) {
-            toast({
-              title: 'Signup partially completed',
-              description: 'Your account was created but some details could not be saved. Please contact support.',
-              variant: 'destructive',
+            .insert({
+              user_id: data.user.id,
+              email: values.email,
+              name: values.name,
+              mobile_number: values.mobileNumber,
+              tsa_id: values.tsaId,
+              status: 'Pending',  // Make sure status is 'Pending'
+              role: 'User'        // Make sure role is 'User'
             });
+
+          console.log("Insert response:", { error: insertError });
+
+          if (insertError) {
+            console.error('Error inserting user details:', insertError);
+            setErrorMessage(`User account created but profile data couldn't be saved: ${insertError.message}`);
+            
+            // Try a different approach - sign in first then insert
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+              email: values.email,
+              password: values.password,
+            });
+            
+            if (signInError) {
+              console.error('Error signing in after signup:', signInError);
+              toast({
+                title: 'Signup partially completed',
+                description: 'Your account was created but some details could not be saved. Please contact support.',
+                variant: 'destructive',
+              });
+            } else {
+              console.log("User signed in temporarily to create profile");
+              
+              // Second attempt after sign-in
+              const { error: secondInsertError } = await supabase
+                .from('users')
+                .insert({
+                  user_id: data.user.id,
+                  email: values.email,
+                  name: values.name,
+                  mobile_number: values.mobileNumber,
+                  tsa_id: values.tsaId,
+                  status: 'Pending',
+                  role: 'User'
+                });
+                
+              if (secondInsertError) {
+                console.error('Second attempt insert error:', secondInsertError);
+                setErrorMessage(`Failed to save user profile after two attempts: ${secondInsertError.message}`);
+                toast({
+                  title: 'Signup partially completed',
+                  description: 'Your account was created but some details could not be saved. Please contact support.',
+                  variant: 'destructive',
+                });
+              } else {
+                console.log("Second attempt successful, user data inserted");
+                toast({
+                  title: 'Account created',
+                  description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+                });
+                setErrorMessage(null);
+              }
+              
+              // Sign out the user since they need approval
+              await supabase.auth.signOut();
+            }
           } else {
+            console.log("User data successfully inserted into users table");
             toast({
               title: 'Account created',
               description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
             });
+            setErrorMessage(null);
           }
-        } else {
-          console.log("User data successfully inserted into users table");
+        } catch (insertCatchError) {
+          console.error('Critical error during user insertion:', insertCatchError);
+          setErrorMessage(`Critical error during profile creation: ${(insertCatchError as Error).message}`);
           toast({
-            title: 'Account created',
-            description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+            title: 'Signup partially completed',
+            description: 'Your account was created but profile details could not be saved due to a system error.',
+            variant: 'destructive',
           });
         }
         
-        // Sign out the user since they need approval
-        await supabase.auth.signOut();
         onToggleMode(); // Switch back to login form
       }
     } catch (error) {
       console.error('Signup error:', error);
+      setErrorMessage(`Unexpected error: ${(error as Error).message}`);
       toast({
         title: 'Signup failed',
         description: 'An unexpected error occurred',
@@ -156,6 +187,14 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
 
   return (
     <Form {...form}>
+      {errorMessage && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+      
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
