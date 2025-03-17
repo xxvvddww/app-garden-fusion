@@ -79,13 +79,69 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       if (data.user) {
         console.log("Auth user created successfully:", data.user.id);
         
-        toast({
-          title: 'Account created',
-          description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
-        });
-        
-        // Show success message and go back to login form
-        onToggleMode();
+        try {
+          // Sign in the user to get a session token
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: values.email,
+            password: values.password,
+          });
+          
+          if (signInError) {
+            console.error("Error signing in after signup:", signInError);
+            throw new Error(`Failed to sign in: ${signInError.message}`);
+          }
+          
+          // Get the session token to use for the edge function call
+          const { data: sessionData } = await supabase.auth.getSession();
+          
+          if (!sessionData.session) {
+            throw new Error("Failed to get session after sign in");
+          }
+          
+          // Call the edge function to create the user record in the users table
+          const { data: functionData, error: functionError } = await supabase.functions.invoke(
+            'add-users-after-signup',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${sessionData.session.access_token}`,
+              },
+              body: {
+                name: values.name,
+                email: values.email,
+                mobileNumber: values.mobileNumber,
+                tsaId: values.tsaId,
+              },
+            }
+          );
+          
+          if (functionError) {
+            console.error("Edge function error:", functionError);
+            throw new Error(`Edge function error: ${functionError.message}`);
+          }
+          
+          console.log("Edge function response:", functionData);
+          
+          // Sign out the user since they need approval
+          await supabase.auth.signOut();
+          
+          toast({
+            title: 'Account created',
+            description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+          });
+          
+          // Show success message and go back to login form
+          onToggleMode();
+        } catch (error) {
+          console.error("Error in post-signup process:", error);
+          setErrorMessage(`Error saving user profile: ${(error as Error).message}`);
+          toast({
+            title: 'Signup partially completed',
+            description: 'Your account was created but some details could not be saved.',
+            variant: 'warning',
+          });
+          onToggleMode(); // Still go back to login since the auth user was created
+        }
       }
     } catch (error) {
       console.error('Signup error:', error);
