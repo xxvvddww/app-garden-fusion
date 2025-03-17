@@ -7,14 +7,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/components/ui/use-toast';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  mobileNumber: z.string().min(8, 'Please enter a valid mobile number').optional(),
+  mobileNumber: z.string()
+    .regex(/^614\d{8}$/, 'Mobile number must be in format 614XXXXXXXX with 8 digits after 614')
+    .optional(),
   tsaId: z.string().length(9, 'TSA ID must be exactly 9 digits').regex(/^\d+$/, 'TSA ID must contain only numbers'),
 });
 
@@ -31,7 +33,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       name: '',
       email: '',
       password: '',
-      mobileNumber: '',
+      mobileNumber: '614',
       tsaId: '',
     },
   });
@@ -126,12 +128,38 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
               <FormLabel>Mobile Number</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="Your mobile number"
+                  placeholder="614XXXXXXXX"
                   autoComplete="tel"
                   disabled={isSubmitting}
+                  maxLength={11}
                   {...field}
+                  onChange={(e) => {
+                    // Enforce the 614 prefix
+                    let value = e.target.value;
+                    
+                    // If user clears the field, reset to '614'
+                    if (!value) {
+                      field.onChange('614');
+                      return;
+                    }
+                    
+                    // If user tries to modify the prefix, restore it
+                    if (!value.startsWith('614')) {
+                      value = '614' + value.replace(/[^0-9]/g, '');
+                    }
+                    
+                    // Limit to 11 characters (614 + 8 digits)
+                    if (value.length > 11) {
+                      value = value.slice(0, 11);
+                    }
+                    
+                    field.onChange(value);
+                  }}
                 />
               </FormControl>
+              <FormDescription>
+                Format: 614XXXXXXXX (8 digits after 614)
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
