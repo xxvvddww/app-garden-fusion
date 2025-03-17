@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -122,16 +121,14 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
           
           console.log("Edge function response:", functionData);
           
-          // Sign out the user since they need approval
-          await supabase.auth.signOut();
-          
           toast({
             title: 'Account created',
             description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
           });
           
-          // Show success message and go back to login form
-          onToggleMode();
+          // Stay signed in - the ProtectedRoute component will handle the pending status display
+          // No need to call signOut here
+          navigate('/');
         } catch (error) {
           console.error("Error in post-signup process:", error);
           setErrorMessage(`Error saving user profile: ${(error as Error).message}`);
@@ -140,7 +137,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             description: 'Your account was created but some details could not be saved.',
             variant: 'warning',
           });
-          onToggleMode(); // Still go back to login since the auth user was created
+          onToggleMode(); // Go back to login since there was an error
         }
       }
     } catch (error) {

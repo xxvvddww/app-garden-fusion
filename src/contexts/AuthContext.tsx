@@ -1,4 +1,3 @@
-
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
@@ -93,11 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
         if (insertError) {
           console.error('Error inserting fallback user:', insertError);
-          toast({
-            title: "Warning",
-            description: "Using limited profile due to database permissions. Some features may be restricted.",
-            variant: "warning",
-          });
         } else {
           console.log("Inserted fallback user successfully");
         }
@@ -110,19 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       setLoading(false);
-      toast({
-        title: "Error",
-        description: "Failed to retrieve your profile. Please try signing in again.",
-        variant: "destructive",
-      });
-      
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred while fetching your profile.",
-        variant: "destructive",
-      });
       setLoading(false);
     }
   };

@@ -76,7 +76,7 @@ serve(async (req) => {
         mobile_number: user.user_metadata.mobile_number || requestData.mobileNumber,
         tsa_id: user.user_metadata.tsa_id || requestData.tsaId,
         role: "User",
-        status: "Pending"
+        status: "Pending" // Keep as Pending to require admin approval
       })
       .select()
       .single();
