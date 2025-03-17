@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { 
   Dialog, 
   DialogContent, 
@@ -49,14 +49,16 @@ const ReserveBayDialog = ({
   isAdmin
 }: ReserveBayDialogProps) => {
   const [loading, setLoading] = useState(false);
-  const [assignmentType, setAssignmentType] = useState<'today' | 'permanent'>('today');
+  const [assignmentType, setAssignmentType] = useState<'today' | 'tomorrow' | 'permanent'>('today');
   const [dayOfWeek, setDayOfWeek] = useState<string>('');
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
   const [revokingBay, setRevokingBay] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const today = format(new Date(), 'yyyy-MM-dd');
+  const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
   const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
+  const tomorrowDayOfWeek = format(addDays(new Date(), 1), 'EEEE');
   
   const dayOptions = [
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'All Days'
@@ -82,7 +84,7 @@ const ReserveBayDialog = ({
         .from('daily_claims')
         .select('*')
         .eq('bay_id', bay.bay_id)
-        .eq('claim_date', today)
+        .eq('claim_date', assignmentType === 'today' ? today : tomorrow)
         .eq('status', 'Active');
         
       if (claimsCheckError) throw claimsCheckError;
@@ -98,13 +100,15 @@ const ReserveBayDialog = ({
         return;
       }
       
-      if (assignmentType === 'today') {
+      if (assignmentType === 'today' || assignmentType === 'tomorrow') {
+        const claimDate = assignmentType === 'today' ? today : tomorrow;
+        
         const { error } = await supabase
           .from('daily_claims')
           .insert({
             bay_id: bay.bay_id,
             user_id: user.user_id,
-            claim_date: today,
+            claim_date: claimDate,
             created_by: user.user_id
           });
           
@@ -112,9 +116,9 @@ const ReserveBayDialog = ({
         
         toast({
           title: 'Bay Reserved',
-          description: `You have successfully reserved Bay ${bay.bay_number} for today`,
+          description: `You have successfully reserved Bay ${bay.bay_number} for ${assignmentType === 'today' ? 'today' : 'tomorrow'}`,
         });
-      } else {
+      } else if (assignmentType === 'permanent' && isAdmin) {
         const { error } = await supabase
           .from('permanent_assignments')
           .insert({
@@ -304,20 +308,30 @@ const ReserveBayDialog = ({
                     onClick={() => setAssignmentType('today')}
                   >
                     <Calendar className="mr-2 h-4 w-4" />
-                    Today Only
+                    Today
                   </Button>
                   <Button 
-                    variant={assignmentType === 'permanent' ? "default" : "outline"}
-                    className={`flex-1 ${assignmentType === 'permanent' ? '' : 'text-gray-400'}`}
-                    onClick={() => setAssignmentType('permanent')}
+                    variant={assignmentType === 'tomorrow' ? "default" : "outline"}
+                    className={`flex-1 ${assignmentType === 'tomorrow' ? '' : 'text-gray-400'}`}
+                    onClick={() => setAssignmentType('tomorrow')}
                   >
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Permanent
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Tomorrow
                   </Button>
+                  {isAdmin && (
+                    <Button 
+                      variant={assignmentType === 'permanent' ? "default" : "outline"}
+                      className={`flex-1 ${assignmentType === 'permanent' ? '' : 'text-gray-400'}`}
+                      onClick={() => setAssignmentType('permanent')}
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Permanent
+                    </Button>
+                  )}
                 </div>
               </div>
               
-              {assignmentType === 'permanent' && (
+              {assignmentType === 'permanent' && isAdmin && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Select Day:</p>
                   <Select value={dayOfWeek} onValueChange={setDayOfWeek}>
