@@ -12,10 +12,16 @@ interface BayCardProps {
 
 const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
   const isReservedByYou = bay.reserved_by_you === true;
+  const isAvailable = bay.status === 'Available';
 
   return (
     <Card 
-      className={`bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 hover:shadow-[0_0_15px_rgba(0,255,128,0.15)] cursor-pointer ${isReservedByYou ? 'border-green-500 border-2' : ''}`}
+      className={`
+        bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 
+        ${isReservedByYou ? 'border-green-500 border-2' : ''}
+        ${isAvailable ? 'hover:shadow-[0_0_15px_rgba(14,165,233,0.6)] border-[#1E2A45] hover:border-blue-400 hover:border' : ''}
+        cursor-pointer
+      `}
       onClick={() => onClick && onClick(bay)}
     >
       <CardContent className="flex flex-col items-center justify-center p-3 h-full">
@@ -64,6 +70,11 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
           </div>
         )}
       </CardContent>
+
+      {/* Add pulsing glow effect for available bays */}
+      {isAvailable && (
+        <div className="absolute inset-0 -z-10 rounded-lg animate-pulse-slow opacity-20 bg-blue-400"></div>
+      )}
     </Card>
   );
 };
