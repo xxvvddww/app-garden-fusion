@@ -78,99 +78,14 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
 
       if (data.user) {
         console.log("Auth user created successfully:", data.user.id);
-        console.log("User metadata:", data.user.user_metadata);
         
-        // Added delay to ensure auth state propagates
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        toast({
+          title: 'Account created',
+          description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+        });
         
-        try {
-          // Insert directly without signing in first - this relies on the RLS policy we created
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert({
-              user_id: data.user.id,
-              email: values.email,
-              name: values.name,
-              mobile_number: values.mobileNumber,
-              tsa_id: values.tsaId,
-              status: 'Pending',  // Make sure status is 'Pending'
-              role: 'User'        // Make sure role is 'User'
-            });
-
-          console.log("Insert response:", { error: insertError });
-
-          if (insertError) {
-            console.error('Error inserting user details:', insertError);
-            setErrorMessage(`User account created but profile data couldn't be saved: ${insertError.message}`);
-            
-            // Try a different approach - sign in first then insert
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-              email: values.email,
-              password: values.password,
-            });
-            
-            if (signInError) {
-              console.error('Error signing in after signup:', signInError);
-              toast({
-                title: 'Signup partially completed',
-                description: 'Your account was created but some details could not be saved. Please contact support.',
-                variant: 'destructive',
-              });
-            } else {
-              console.log("User signed in temporarily to create profile");
-              
-              // Second attempt after sign-in
-              const { error: secondInsertError } = await supabase
-                .from('users')
-                .insert({
-                  user_id: data.user.id,
-                  email: values.email,
-                  name: values.name,
-                  mobile_number: values.mobileNumber,
-                  tsa_id: values.tsaId,
-                  status: 'Pending',
-                  role: 'User'
-                });
-                
-              if (secondInsertError) {
-                console.error('Second attempt insert error:', secondInsertError);
-                setErrorMessage(`Failed to save user profile after two attempts: ${secondInsertError.message}`);
-                toast({
-                  title: 'Signup partially completed',
-                  description: 'Your account was created but some details could not be saved. Please contact support.',
-                  variant: 'destructive',
-                });
-              } else {
-                console.log("Second attempt successful, user data inserted");
-                toast({
-                  title: 'Account created',
-                  description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
-                });
-                setErrorMessage(null);
-              }
-              
-              // Sign out the user since they need approval
-              await supabase.auth.signOut();
-            }
-          } else {
-            console.log("User data successfully inserted into users table");
-            toast({
-              title: 'Account created',
-              description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
-            });
-            setErrorMessage(null);
-          }
-        } catch (insertCatchError) {
-          console.error('Critical error during user insertion:', insertCatchError);
-          setErrorMessage(`Critical error during profile creation: ${(insertCatchError as Error).message}`);
-          toast({
-            title: 'Signup partially completed',
-            description: 'Your account was created but profile details could not be saved due to a system error.',
-            variant: 'destructive',
-          });
-        }
-        
-        onToggleMode(); // Switch back to login form
+        // Show success message and go back to login form
+        onToggleMode();
       }
     } catch (error) {
       console.error('Signup error:', error);
