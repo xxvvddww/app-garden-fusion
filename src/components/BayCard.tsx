@@ -9,9 +9,10 @@ interface BayCardProps {
   bay: Bay;
   onClick?: (bay: Bay) => void;
   reservedByName?: string;
+  isAdmin?: boolean;
 }
 
-const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
+const BayCard = ({ bay, onClick, reservedByName, isAdmin }: BayCardProps) => {
   const isReservedByYou = bay.reserved_by_you === true;
   const isAvailable = bay.status === 'Available';
   const isReservedByOther = bay.status === 'Reserved' && !isReservedByYou;
@@ -79,6 +80,11 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
           <div className="absolute top-2 right-2 flex items-center">
             <UserCheck className="w-4 h-4 text-green-400" />
           </div>
+        )}
+
+        {/* Add a visual indicator that admins can revoke this bay */}
+        {isAdmin && bay.status === 'Reserved' && (
+          <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
         )}
       </CardContent>
 
