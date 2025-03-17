@@ -3,6 +3,7 @@ import { Car, UserCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bay } from '@/types';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface BayCardProps {
   bay: Bay;
@@ -13,6 +14,7 @@ interface BayCardProps {
 const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
   const isReservedByYou = bay.reserved_by_you === true;
   const isAvailable = bay.status === 'Available';
+  const isMobile = useIsMobile();
 
   return (
     <Card 
@@ -25,17 +27,20 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
       onClick={() => onClick && onClick(bay)}
     >
       <CardContent className="flex flex-col items-center justify-center p-3 h-full">
-        <div className="rounded-full bg-[#162240] p-2 mb-2">
-          <Car 
-            className={`w-5 h-5 ${
-              bay.status === 'Available' 
-                ? 'text-green-400' 
-                : bay.status === 'Maintenance' 
-                  ? 'text-orange-400' 
-                  : 'text-blue-400'
-            }`} 
-          />
-        </div>
+        {/* Only show the car icon on desktop */}
+        {!isMobile && (
+          <div className="rounded-full bg-[#162240] p-2 mb-2">
+            <Car 
+              className={`w-5 h-5 ${
+                bay.status === 'Available' 
+                  ? 'text-green-400' 
+                  : bay.status === 'Maintenance' 
+                    ? 'text-orange-400' 
+                    : 'text-blue-400'
+              }`} 
+            />
+          </div>
+        )}
         
         <h3 className="font-medium text-sm mb-1">
           {bay.bay_number}
