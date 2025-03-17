@@ -90,18 +90,12 @@ export default {
 					"0%": { opacity: "0.2" },
 					"50%": { opacity: "0.8" },
 					"100%": { opacity: "0.2" }
-				},
-				"border-flow": {
-					"0%": { backgroundPosition: "0% 50%" },
-					"50%": { backgroundPosition: "100% 50%" },
-					"100%": { backgroundPosition: "0% 50%" }
 				}
 			},
 			animation: {
 				"accordion-down": "accordion-down 0.2s ease-out",
 				"accordion-up": "accordion-up 0.2s ease-out",
-				"pulse-slow": "pulse-slow 2s ease-in-out infinite",
-				"border-flow": "border-flow 3s ease infinite"
+				"pulse-slow": "pulse-slow 2s ease-in-out infinite"
 			}
 		}
 	},

@@ -17,9 +17,9 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
   return (
     <Card 
       className={`
-        bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 rounded-lg
+        bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 
         ${isReservedByYou ? 'border-green-500 border-2' : ''}
-        ${isAvailable ? 'bay-border-glow' : ''}
+        ${isAvailable ? 'border-blue-400 shadow-[0_0_10px_rgba(14,165,233,0.4)]' : ''}
         cursor-pointer
       `}
       onClick={() => onClick && onClick(bay)}
@@ -70,6 +70,11 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
           </div>
         )}
       </CardContent>
+
+      {/* Add pulsing glow effect for available bays */}
+      {isAvailable && (
+        <div className="absolute inset-0 -z-10 rounded-lg animate-pulse-slow opacity-20 bg-blue-400"></div>
+      )}
     </Card>
   );
 };
