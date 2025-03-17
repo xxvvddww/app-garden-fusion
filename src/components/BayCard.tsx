@@ -15,9 +15,6 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
   const isReservedByYou = bay.reserved_by_you === true;
   const isAvailable = bay.status === 'Available';
   const isMobile = useIsMobile();
-  
-  // Extract just the number part from the bay_number
-  const displayNumber = bay.bay_number.replace('Bay ', '');
 
   return (
     <Card 
@@ -46,7 +43,7 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
         )}
         
         <h3 className="font-medium text-sm mb-1">
-          {displayNumber}
+          {bay.bay_number}
         </h3>
         
         <Badge 
