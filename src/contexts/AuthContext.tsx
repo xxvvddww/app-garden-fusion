@@ -1,3 +1,4 @@
+
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
@@ -68,13 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (queryError) {
         console.error('Error checking user profile:', queryError);
         
-        // Create a fallback user if needed
+        // Create a fallback user if needed - explicitly set to 'User' role and 'Pending' status
         const minimumUserData: User = {
           user_id: userId,
           email: authUser.email || '',
           name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
-          role: 'User', // Default to User
-          status: 'Pending',
+          role: 'User', // Always default to User role
+          status: 'Pending', // Always default to Pending status
           created_by: null,
           created_date: null,
           mobile_number: authUser.user_metadata?.mobile_number || null,

@@ -91,6 +91,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Insert user record with the user themselves authenticated
+        // EXPLICITLY set role to 'User' and status to 'Pending'
         const { error: insertError } = await supabase
           .from('users')
           .insert({
@@ -99,8 +100,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             name: values.name,
             mobile_number: values.mobileNumber,
             tsa_id: values.tsaId,
-            status: 'Pending',
-            role: 'User'
+            status: 'Pending',  // Make sure status is 'Pending'
+            role: 'User'        // Make sure role is 'User'
           });
 
         console.log("Insert response:", { error: insertError });
