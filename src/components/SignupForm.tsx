@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -32,6 +33,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [accountCreated, setAccountCreated] = useState(false);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -79,22 +81,12 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         console.log("Auth user created successfully:", data.user.id);
         
         try {
-          // Sign in the user to get a session token
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: values.email,
-            password: values.password,
-          });
-          
-          if (signInError) {
-            console.error("Error signing in after signup:", signInError);
-            throw new Error(`Failed to sign in: ${signInError.message}`);
-          }
-          
-          // Get the session token to use for the edge function call
+          // Call the edge function to create the user record in the users table
+          // We don't need to sign in first, we can use the session from signUp
           const { data: sessionData } = await supabase.auth.getSession();
           
           if (!sessionData.session) {
-            throw new Error("Failed to get session after sign in");
+            throw new Error("Failed to get session after sign up");
           }
           
           // Call the edge function to create the user record in the users table
@@ -121,14 +113,19 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
           
           console.log("Edge function response:", functionData);
           
+          // Mark account as created but don't navigate yet
+          setAccountCreated(true);
+          
           toast({
             title: 'Account created',
-            description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+            description: 'Your account has been created and is pending admin approval. Please sign in to see your status.',
           });
           
-          // Stay signed in - the ProtectedRoute component will handle the pending status display
-          // No need to call signOut here
-          navigate('/');
+          // Sign out user so they can explicitly sign in
+          await supabase.auth.signOut();
+          
+          // Show sign in form
+          onToggleMode();
         } catch (error) {
           console.error("Error in post-signup process:", error);
           setErrorMessage(`Error saving user profile: ${(error as Error).message}`);
@@ -152,6 +149,29 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       setIsSubmitting(false);
     }
   };
+
+  // If account was created, show a success message
+  if (accountCreated) {
+    return (
+      <div className="space-y-4">
+        <Alert variant="success" className="mb-4 bg-green-100 border-green-200">
+          <AlertTitle className="text-green-800">Account Created Successfully</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Your account has been created and is pending administrator approval. 
+            Please sign in to view your account status.
+          </AlertDescription>
+        </Alert>
+        <Button 
+          type="button" 
+          variant="default" 
+          className="w-full" 
+          onClick={onToggleMode}
+        >
+          Go to Sign In
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <Form {...form}>
