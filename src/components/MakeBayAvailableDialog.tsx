@@ -110,6 +110,7 @@ const MakeBayAvailableDialog = ({
           }
         } else {
           // If no claim exists, create a new one with 'Cancelled' status
+          // This is crucial for permanent assignments - we need to create a cancellation record
           console.log('No existing claim found, creating new cancelled claim');
           
           const newClaim = {
@@ -133,6 +134,13 @@ const MakeBayAvailableDialog = ({
         }
       }
       
+      // Force a refresh of the data after cancellation
+      if (onSuccess) {
+        setTimeout(() => {
+          onSuccess();
+        }, 100); // Small delay to ensure DB operations complete
+      }
+      
       toast({
         title: 'Success',
         description: `Your bay has been marked as available for the selected ${dates.length > 1 ? 'dates' : 'date'}`,
@@ -140,10 +148,6 @@ const MakeBayAvailableDialog = ({
       });
       
       onOpenChange(false);
-      // Refresh data to update UI
-      if (onSuccess) {
-        onSuccess();
-      }
     } catch (error) {
       console.error('Error updating bay status:', error);
       toast({

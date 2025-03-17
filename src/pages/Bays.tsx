@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -154,6 +155,12 @@ const Bays = () => {
         }
       });
       
+      // Debug logging for cancelled claims
+      console.log('Cancelled Daily Claims Map:');
+      cancelledDailyClaimsMap.forEach((userSet, bayId) => {
+        console.log(`Bay ${bayId}:`, Array.from(userSet));
+      });
+      
       const permanentAssignmentsMap = new Map();
       permanentAssignmentsData.forEach(assignment => {
         permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
@@ -211,6 +218,8 @@ const Bays = () => {
           // Check if the permanent assignment has been cancelled for today
           const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
                               cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
+          
+          console.log(`Bay ${bay.bay_number}: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
           
           // If this specific user's permanent assignment is cancelled for today, mark bay as available
           if (hasCancelledClaim) {
