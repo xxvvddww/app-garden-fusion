@@ -70,11 +70,6 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
           </div>
         )}
       </CardContent>
-
-      {/* Add subtle pulsing glow effect for available bays */}
-      {isAvailable && (
-        <div className="absolute inset-0 -z-10 rounded-lg animate-pulse-slow opacity-10 bg-blue-700"></div>
-      )}
     </Card>
   );
 };
