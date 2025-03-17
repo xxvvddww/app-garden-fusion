@@ -29,6 +29,7 @@ const Login = () => {
   const [redirectAttempts, setRedirectAttempts] = useState(0);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Get the intended destination from location state, or default to '/'
   const from = location.state?.from?.pathname || '/';
 
   const form = useForm<LoginFormValues>({
@@ -39,6 +40,7 @@ const Login = () => {
     },
   });
 
+  // Effect for redirection logic
   useEffect(() => {
     const redirectIfAuthenticated = async () => {
       console.log("Checking auth state for redirect:", { 
@@ -53,10 +55,11 @@ const Login = () => {
           console.log("User is authenticated, redirecting to:", from);
           navigate(from, { replace: true });
         } else if (redirectAttempts < 10 && session && !user) {
+          // If we have a session but no user yet, wait a bit and retry
           console.log("Session exists but no user yet, waiting...");
           setTimeout(() => {
             setRedirectAttempts(prev => prev + 1);
-          }, 1500);
+          }, 1500); // Increased wait time to allow more time for profile fetching
         }
       }
     };
@@ -64,6 +67,7 @@ const Login = () => {
     redirectIfAuthenticated();
   }, [user, loading, session, navigate, from, redirectAttempts]);
 
+  // Clear login error when switching auth modes
   useEffect(() => {
     setLoginError(null);
   }, [authMode]);
@@ -92,7 +96,7 @@ const Login = () => {
           title: 'Welcome back',
           description: 'You have been signed in successfully.',
         });
-        navigate(from, { replace: true });
+        // The redirect will be handled by the useEffect
       }
     } catch (err) {
       console.error("Unexpected error during sign in:", err);
@@ -111,6 +115,7 @@ const Login = () => {
     setAuthMode(authMode === 'login' ? 'signup' : 'login');
   };
 
+  // Immediate redirect if the user is already authenticated
   if (!loading && user && session) {
     console.log("User is already authenticated, redirecting immediately");
     return <Navigate to={from} replace />;
@@ -122,16 +127,11 @@ const Login = () => {
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center mb-4">
             <div className="h-16 w-auto">
-              <svg viewBox="0 0 100 45" xmlns="http://www.w3.org/2000/svg" className="logo-svg">
-                <use xlinkHref="https://tsagroup.com.au/wp-content/themes/tsa/assets/img/inline.svg#logo"></use>
-              </svg>
-              <style jsx>{`
-                .logo-svg {
-                  fill: white;
-                  width: 120px;
-                  height: auto;
-                }
-              `}</style>
+              <img 
+                src="https://tsagroup.com.au/wp-content/themes/tsa/assets/img/inline.svg#logo" 
+                alt="TSA Logo" 
+                className="h-full w-auto"
+              />
             </div>
           </div>
           <CardTitle className="text-xl">
