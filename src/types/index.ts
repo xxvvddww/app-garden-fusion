@@ -4,7 +4,7 @@ export interface User {
   email: string;
   name: string;
   role: 'Admin' | 'Moderator' | 'User';
-  status: 'Active' | 'Inactive' | 'Locked' | 'Suspended';
+  status: 'Active' | 'Inactive' | 'Locked' | 'Suspended' | 'Pending' | 'Rejected';
   created_date?: string;
   updated_date?: string;
   created_by?: string;

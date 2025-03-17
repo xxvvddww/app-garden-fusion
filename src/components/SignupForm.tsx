@@ -50,6 +50,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             name: values.name,
             mobile_number: values.mobileNumber,
             tsa_id: values.tsaId,
+            status: 'Pending', // Set initial status to Pending for admin approval
           },
         },
       });
@@ -63,7 +64,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       } else {
         toast({
           title: 'Account created',
-          description: 'You have been signed up successfully. You can now sign in.',
+          description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
         });
         onToggleMode(); // Switch back to login form
       }

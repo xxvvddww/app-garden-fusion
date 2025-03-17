@@ -12,12 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import UserApproval from '@/components/UserApproval';
 import { 
   ParkingSquare, 
   CalendarClock, 
   MegaphoneIcon,
   BookOpenText,
-  ChevronRight
+  ChevronRight,
+  UserCheck
 } from 'lucide-react';
 
 const Admin = () => {
@@ -41,11 +44,28 @@ const Admin = () => {
   });
   const [existingAssignments, setExistingAssignments] = useState<string[]>([]);
   const [removedDays, setRemovedDays] = useState<string[]>([]);
+  const [pendingUsersCount, setPendingUsersCount] = useState(0);
 
   useEffect(() => {
     console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
+    fetchPendingUsersCount();
     setLoading(false);
   }, [user, session]);
+
+  const fetchPendingUsersCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Pending');
+      
+      if (error) throw error;
+      
+      setPendingUsersCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching pending users count:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedUser && selectedBay) {
@@ -387,41 +407,72 @@ const Admin = () => {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Admin Dashboard</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Management</CardTitle>
-            <CardDescription>Manage bays and assignments</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-between" onClick={handleNavigateToBays}>
-              <span>Bay Management</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" className="w-full justify-between" onClick={handleOpenAssignmentDialog}>
-              <span>Assignment Management</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Communications</CardTitle>
-            <CardDescription>Create announcements and send notifications</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-between" onClick={() => toast({ title: "Coming Soon", description: "Announcements feature is under development." })}>
-              <span>Create Announcement</span>
-              <MegaphoneIcon className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" className="w-full justify-between" onClick={() => toast({ title: "Coming Soon", description: "Activity Logs feature is under development." })}>
-              <span>View Activity Logs</span>
-              <BookOpenText className="h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue={pendingUsersCount > 0 ? "approvals" : "management"}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="management">Management</TabsTrigger>
+          <TabsTrigger value="approvals" className="relative">
+            User Approvals
+            {pendingUsersCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {pendingUsersCount}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="communications">Communications</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="management">
+          <div className="grid grid-cols-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Management</CardTitle>
+                <CardDescription>Manage bays and assignments</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="outline" className="w-full justify-between" onClick={handleNavigateToBays}>
+                  <span>Bay Management</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="w-full justify-between" onClick={handleOpenAssignmentDialog}>
+                  <span>Assignment Management</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="approvals">
+          <Card>
+            <CardHeader>
+              <CardTitle>User Approval Requests</CardTitle>
+              <CardDescription>Manage new user signups that require approval</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UserApproval />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="communications">
+          <Card>
+            <CardHeader>
+              <CardTitle>Communications</CardTitle>
+              <CardDescription>Create announcements and send notifications</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button variant="outline" className="w-full justify-between" onClick={() => toast({ title: "Coming Soon", description: "Announcements feature is under development." })}>
+                <span>Create Announcement</span>
+                <MegaphoneIcon className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" className="w-full justify-between" onClick={() => toast({ title: "Coming Soon", description: "Activity Logs feature is under development." })}>
+                <span>View Activity Logs</span>
+                <BookOpenText className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
       
       <Dialog open={openAssignmentDialog} onOpenChange={setOpenAssignmentDialog}>
         <DialogContent className="sm:max-w-[425px]">
