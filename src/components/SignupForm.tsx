@@ -15,6 +15,7 @@ const signupSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   mobileNumber: z.string().min(8, 'Please enter a valid mobile number').optional(),
+  tsaId: z.string().length(9, 'TSA ID must be exactly 9 digits').regex(/^\d+$/, 'TSA ID must contain only numbers'),
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -31,6 +32,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       email: '',
       password: '',
       mobileNumber: '',
+      tsaId: '',
     },
   });
 
@@ -45,6 +47,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
           data: {
             name: values.name,
             mobile_number: values.mobileNumber,
+            tsa_id: values.tsaId,
           },
         },
       });
@@ -125,6 +128,26 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
                 <Input
                   placeholder="Your mobile number"
                   autoComplete="tel"
+                  disabled={isSubmitting}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="tsaId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>TSA ID</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="9-digit TSA ID"
+                  autoComplete="off"
+                  maxLength={9}
                   disabled={isSubmitting}
                   {...field}
                 />
