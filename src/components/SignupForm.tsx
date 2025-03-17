@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -154,7 +154,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
   if (accountCreated) {
     return (
       <div className="space-y-4">
-        <Alert variant="success" className="mb-4 bg-green-100 border-green-200">
+        <Alert variant="default" className="mb-4 bg-green-100 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
           <AlertTitle className="text-green-800">Account Created Successfully</AlertTitle>
           <AlertDescription className="text-green-700">
             Your account has been created and is pending administrator approval. 
