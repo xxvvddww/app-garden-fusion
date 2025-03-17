@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -184,6 +185,15 @@ const ReserveBayDialog = ({
     try {
       setRevokingBay(true);
       
+      // Step 1: Update the bay status to Available
+      const { error: bayUpdateError } = await supabase
+        .from('bays')
+        .update({ status: 'Available' })
+        .eq('bay_id', bay.bay_id);
+        
+      if (bayUpdateError) throw bayUpdateError;
+      
+      // Step 2: Cancel any active claims for today
       const { data: claimData, error: claimError } = await supabase
         .from('daily_claims')
         .select('claim_id')
@@ -202,6 +212,7 @@ const ReserveBayDialog = ({
         if (error) throw error;
       }
       
+      // Step 3: Remove any permanent assignments for this bay
       const { data: assignmentData, error: assignmentError } = await supabase
         .from('permanent_assignments')
         .select('assignment_id')
