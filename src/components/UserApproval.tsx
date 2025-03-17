@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, castToUser } from '@/types';
@@ -55,15 +56,51 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
     try {
       setProcessingUser(userId);
       
-      const { error } = await supabase
+      // Log before the update to verify the user ID
+      console.log('Approving user with ID:', userId);
+      
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+        
+      if (userError) {
+        console.error('Error fetching user data before approval:', userError);
+        throw userError;
+      }
+      
+      console.log('User data before approval:', userData);
+      
+      const { error, status } = await supabase
         .from('users')
         .update({ 
           status: 'Active',
-          role: 'User'
+          role: 'User',
+          updated_by: user?.user_id,
+          updated_date: new Date().toISOString()
         })
         .eq('user_id', userId);
       
-      if (error) throw error;
+      console.log('Update response status:', status);
+      
+      if (error) {
+        console.error('Error in update operation:', error);
+        throw error;
+      }
+      
+      // Verify the update was successful
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+        
+      if (verifyError) {
+        console.error('Error verifying user update:', verifyError);
+      } else {
+        console.log('User data after approval:', verifyData);
+      }
       
       toast({
         title: 'User Approved',
@@ -93,12 +130,23 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
     try {
       setProcessingUser(userId);
       
-      const { error } = await supabase
+      console.log('Rejecting user with ID:', userId);
+      
+      const { error, status } = await supabase
         .from('users')
-        .update({ status: 'Rejected' })
+        .update({ 
+          status: 'Rejected',
+          updated_by: user?.user_id,
+          updated_date: new Date().toISOString()
+        })
         .eq('user_id', userId);
       
-      if (error) throw error;
+      console.log('Reject response status:', status);
+      
+      if (error) {
+        console.error('Error in reject operation:', error);
+        throw error;
+      }
       
       toast({
         title: 'User Rejected',
