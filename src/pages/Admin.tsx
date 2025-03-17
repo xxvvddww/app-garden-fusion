@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Bay, castToUser, castToBay } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { User, Bay, castToUser, castToBay, DailyClaim, PermanentAssignment, castToDailyClaim } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,44 @@ import {
   MegaphoneIcon,
   BookOpenText,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  X,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
+import { format } from 'date-fns';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+interface ClaimWithDetails extends DailyClaim {
+  userName: string;
+  bayNumber: number;
+  bayLocation: string;
+}
+
+interface AssignmentWithDetails extends PermanentAssignment {
+  userName: string;
+  bayNumber: number;
+  bayLocation: string;
+}
 
 const Admin = () => {
   const { user, session } = useAuth();
@@ -45,6 +81,13 @@ const Admin = () => {
   const [existingAssignments, setExistingAssignments] = useState<string[]>([]);
   const [removedDays, setRemovedDays] = useState<string[]>([]);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
+  const [activeTab, setActiveTab] = useState(pendingUsersCount > 0 ? "approvals" : "management");
+  const [dailyClaims, setDailyClaims] = useState<ClaimWithDetails[]>([]);
+  const [permanentAssignments, setPermanentAssignments] = useState<AssignmentWithDetails[]>([]);
+  const [loadingClaims, setLoadingClaims] = useState(false);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [revokingClaimId, setRevokingClaimId] = useState<string | null>(null);
+  const [revokingAssignmentId, setRevokingAssignmentId] = useState<string | null>(null);
 
   const fetchPendingUsersCount = useCallback(async () => {
     try {
@@ -60,12 +103,6 @@ const Admin = () => {
       console.error('Error fetching pending users count:', error);
     }
   }, []);
-
-  useEffect(() => {
-    console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
-    fetchPendingUsersCount();
-    setLoading(false);
-  }, [user, session, fetchPendingUsersCount]);
 
   useEffect(() => {
     if (selectedUser && selectedBay) {
@@ -403,13 +440,197 @@ const Admin = () => {
     );
   }
 
+  const fetchDailyClaims = async () => {
+    try {
+      setLoadingClaims(true);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      // Get all active daily claims for today
+      const { data: claimsData, error: claimsError } = await supabase
+        .from('daily_claims')
+        .select('*')
+        .eq('claim_date', today)
+        .eq('status', 'Active');
+      
+      if (claimsError) throw claimsError;
+      
+      if (!claimsData || claimsData.length === 0) {
+        setDailyClaims([]);
+        setLoadingClaims(false);
+        return;
+      }
+      
+      // Get user details and bay details for each claim
+      const claimsWithDetails = await Promise.all(claimsData.map(async (claim) => {
+        // Get user info
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('name')
+          .eq('user_id', claim.user_id)
+          .single();
+        
+        if (userError) console.error(`Error fetching user for claim ${claim.claim_id}:`, userError);
+        
+        // Get bay info
+        const { data: bayData, error: bayError } = await supabase
+          .from('bays')
+          .select('bay_number, location')
+          .eq('bay_id', claim.bay_id)
+          .single();
+        
+        if (bayError) console.error(`Error fetching bay for claim ${claim.claim_id}:`, bayError);
+        
+        return {
+          ...claim,
+          userName: userData?.name || 'Unknown User',
+          bayNumber: bayData?.bay_number || 0,
+          bayLocation: bayData?.location || 'Unknown Location'
+        } as ClaimWithDetails;
+      }));
+      
+      setDailyClaims(claimsWithDetails);
+    } catch (error) {
+      console.error('Error fetching daily claims:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load current bay reservations',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingClaims(false);
+    }
+  };
+
+  const fetchPermanentAssignments = async () => {
+    try {
+      setLoadingAssignments(true);
+      
+      // Get all permanent assignments
+      const { data: assignmentsData, error: assignmentsError } = await supabase
+        .from('permanent_assignments')
+        .select('*');
+      
+      if (assignmentsError) throw assignmentsError;
+      
+      if (!assignmentsData || assignmentsData.length === 0) {
+        setPermanentAssignments([]);
+        setLoadingAssignments(false);
+        return;
+      }
+      
+      // Get user details and bay details for each assignment
+      const assignmentsWithDetails = await Promise.all(assignmentsData.map(async (assignment) => {
+        // Get user info
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('name')
+          .eq('user_id', assignment.user_id)
+          .single();
+        
+        if (userError) console.error(`Error fetching user for assignment ${assignment.assignment_id}:`, userError);
+        
+        // Get bay info
+        const { data: bayData, error: bayError } = await supabase
+          .from('bays')
+          .select('bay_number, location')
+          .eq('bay_id', assignment.bay_id)
+          .single();
+        
+        if (bayError) console.error(`Error fetching bay for assignment ${assignment.assignment_id}:`, bayError);
+        
+        return {
+          ...assignment,
+          userName: userData?.name || 'Unknown User',
+          bayNumber: bayData?.bay_number || 0,
+          bayLocation: bayData?.location || 'Unknown Location'
+        } as AssignmentWithDetails;
+      }));
+      
+      setPermanentAssignments(assignmentsWithDetails);
+    } catch (error) {
+      console.error('Error fetching permanent assignments:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load permanent bay assignments',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  const handleRevokeDailyClaim = async (claimId: string) => {
+    try {
+      setRevokingClaimId(claimId);
+      
+      console.log(`Revoking daily claim ${claimId}`);
+      
+      const { error } = await supabase
+        .from('daily_claims')
+        .update({ status: 'Cancelled' })
+        .eq('claim_id', claimId);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Bay Revoked',
+        description: 'The bay reservation has been successfully revoked',
+      });
+      
+      // Refresh the list after successful revocation
+      fetchDailyClaims();
+    } catch (error) {
+      console.error('Error revoking daily claim:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to revoke the bay reservation',
+        variant: 'destructive',
+      });
+    } finally {
+      setRevokingClaimId(null);
+    }
+  };
+
+  const handleRevokePermanentAssignment = async (assignmentId: string) => {
+    try {
+      setRevokingAssignmentId(assignmentId);
+      
+      console.log(`Revoking permanent assignment ${assignmentId}`);
+      
+      const { error } = await supabase
+        .from('permanent_assignments')
+        .delete()
+        .eq('assignment_id', assignmentId);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Assignment Removed',
+        description: 'The permanent bay assignment has been successfully removed',
+      });
+      
+      // Refresh the list after successful revocation
+      fetchPermanentAssignments();
+    } catch (error) {
+      console.error('Error revoking permanent assignment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove the permanent bay assignment',
+        variant: 'destructive',
+      });
+    } finally {
+      setRevokingAssignmentId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Admin Dashboard</h1>
       
-      <Tabs defaultValue={pendingUsersCount > 0 ? "approvals" : "management"}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="management">Management</TabsTrigger>
+          <TabsTrigger value="bayRevocation">Bay Revocation</TabsTrigger>
           <TabsTrigger value="approvals" className="relative">
             User Approvals
             {pendingUsersCount > 0 && (
@@ -440,6 +661,185 @@ const Admin = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="bayRevocation">
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Current Bay Reservations</CardTitle>
+              <CardDescription>View and revoke today's bay reservations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingClaims ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : dailyClaims.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">No active bay reservations for today</p>
+              ) : (
+                <Table>
+                  <TableCaption>Active bay reservations for today</TableCaption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bay</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Reserved By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyClaims.map((claim) => (
+                      <TableRow key={claim.claim_id}>
+                        <TableCell>Bay {claim.bayNumber}</TableCell>
+                        <TableCell>{claim.bayLocation}</TableCell>
+                        <TableCell>{claim.userName}</TableCell>
+                        <TableCell className="text-right">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="destructive" 
+                                size="sm" 
+                                disabled={revokingClaimId === claim.claim_id}
+                              >
+                                {revokingClaimId === claim.claim_id ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Revoking...
+                                  </>
+                                ) : (
+                                  <>
+                                    <X className="mr-2 h-4 w-4" />
+                                    Revoke
+                                  </>
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Revoke Bay Reservation</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to revoke the reservation for Bay {claim.bayNumber} from {claim.userName}?
+                                  This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleRevokeDailyClaim(claim.claim_id)}
+                                >
+                                  Yes, Revoke Bay
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Permanent Bay Assignments</CardTitle>
+              <CardDescription>View and remove permanent bay assignments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingAssignments ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : permanentAssignments.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">No permanent bay assignments</p>
+              ) : (
+                <Table>
+                  <TableCaption>Current permanent bay assignments</TableCaption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bay</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Assigned To</TableHead>
+                      <TableHead>Day</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {permanentAssignments.map((assignment) => (
+                      <TableRow key={assignment.assignment_id}>
+                        <TableCell>Bay {assignment.bayNumber}</TableCell>
+                        <TableCell>{assignment.bayLocation}</TableCell>
+                        <TableCell>{assignment.userName}</TableCell>
+                        <TableCell>{assignment.day_of_week}</TableCell>
+                        <TableCell className="text-right">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="destructive" 
+                                size="sm" 
+                                disabled={revokingAssignmentId === assignment.assignment_id}
+                              >
+                                {revokingAssignmentId === assignment.assignment_id ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Removing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <X className="mr-2 h-4 w-4" />
+                                    Remove
+                                  </>
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove Permanent Assignment</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove the permanent assignment of Bay {assignment.bayNumber} 
+                                  from {assignment.userName} for {assignment.day_of_week}?
+                                  This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleRevokePermanentAssignment(assignment.assignment_id)}
+                                >
+                                  Yes, Remove Assignment
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-center">
+              <Button 
+                variant="outline" 
+                onClick={fetchPermanentAssignments}
+                disabled={loadingAssignments}
+              >
+                {loadingAssignments ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  'Refresh Assignments'
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
         </TabsContent>
 
         <TabsContent value="approvals">
