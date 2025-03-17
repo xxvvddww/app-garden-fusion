@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -73,7 +74,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       if (data.user) {
         console.log("Auth user created successfully:", data.user.id);
         
-        // Insert the user data directly rather than update
+        // Explicitly insert a new record to ensure all fields are saved correctly
+        // This bypasses any trigger that might be setting incorrect values
         const { error: insertError } = await supabase
           .from('users')
           .insert({
@@ -211,9 +213,9 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
               <FormLabel>TSA ID</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="9-digit TSA ID"
+                  placeholder="8-digit TSA ID"
                   autoComplete="off"
-                  maxLength={9}
+                  maxLength={8}
                   disabled={isSubmitting}
                   {...field}
                 />
