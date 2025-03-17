@@ -37,6 +37,7 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
       if (error) throw error;
       
       const typedUsers = (data || []).map(castToUser);
+      console.log('Fetched pending users:', typedUsers);
       setPendingUsers(typedUsers);
       
       if (onApprovalStatusChange) {
@@ -58,13 +59,20 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
     try {
       setProcessingUser(userId);
       
+      if (!currentUser) {
+        throw new Error('No authenticated admin user found');
+      }
+      
       // Log before the update to verify the user ID
       console.log('Approving user with ID:', userId);
+      console.log('Current admin user ID:', currentUser.user_id);
       
+      // First, verify the user exists and is pending
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('user_id', userId)
+        .eq('status', 'Pending')
         .single();
         
       if (userError) {
@@ -72,22 +80,119 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         throw userError;
       }
       
+      if (!userData) {
+        throw new Error('User not found or already approved/rejected');
+      }
+      
       console.log('User data before approval:', userData);
+      
+      // Execute the update with strict equality check
+      const updatePayload = { 
+        status: 'Active',
+        role: 'User',
+        updated_by: currentUser.user_id,
+        updated_date: new Date().toISOString()
+      };
+      
+      console.log('Update payload:', updatePayload);
       
       const { error, status } = await supabase
         .from('users')
-        .update({ 
-          status: 'Active',
-          role: 'User',
-          updated_by: currentUser?.user_id,
-          updated_date: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('user_id', userId);
       
       console.log('Update response status:', status);
       
       if (error) {
         console.error('Error in update operation:', error);
+        throw error;
+      }
+      
+      // Verify the update was successful with a fresh query
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+        
+      if (verifyError) {
+        console.error('Error verifying user update:', verifyError);
+        throw verifyError;
+      } 
+      
+      console.log('User data after approval:', verifyData);
+      
+      if (verifyData.status !== 'Active') {
+        console.error('Update did not persist correctly. Expected status "Active" but got:', verifyData.status);
+        throw new Error('Update did not persist correctly');
+      }
+      
+      toast({
+        title: 'User Approved',
+        description: 'The user account has been approved successfully',
+        duration: 3000,
+      });
+      
+      // Refresh the pending users list
+      await fetchPendingUsers();
+      
+    } catch (error: any) {
+      console.error('Error approving user:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to approve user: ${error.message || 'Unknown error'}`,
+        variant: 'destructive',
+        duration: 3000,
+      });
+    } finally {
+      setProcessingUser(null);
+    }
+  };
+
+  const handleRejectUser = async (userId: string) => {
+    try {
+      setProcessingUser(userId);
+      
+      if (!currentUser) {
+        throw new Error('No authenticated admin user found');
+      }
+      
+      console.log('Rejecting user with ID:', userId);
+      
+      // First, verify the user exists and is pending
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'Pending')
+        .single();
+        
+      if (userError) {
+        console.error('Error fetching user data before rejection:', userError);
+        throw userError;
+      }
+      
+      if (!userData) {
+        throw new Error('User not found or already approved/rejected');
+      }
+      
+      const updatePayload = { 
+        status: 'Rejected',
+        updated_by: currentUser.user_id,
+        updated_date: new Date().toISOString()
+      };
+      
+      console.log('Update payload for rejection:', updatePayload);
+      
+      const { error, status } = await supabase
+        .from('users')
+        .update(updatePayload)
+        .eq('user_id', userId);
+      
+      console.log('Reject response status:', status);
+      
+      if (error) {
+        console.error('Error in reject operation:', error);
         throw error;
       }
       
@@ -99,75 +204,33 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         .single();
         
       if (verifyError) {
-        console.error('Error verifying user update:', verifyError);
-      } else {
-        console.log('User data after approval:', verifyData);
+        console.error('Error verifying user rejection:', verifyError);
+        throw verifyError;
       }
       
-      toast({
-        title: 'User Approved',
-        description: 'The user account has been approved successfully',
-        duration: 1000,
-      });
+      console.log('User data after rejection:', verifyData);
       
-      setPendingUsers(pendingUsers.filter(user => user.user_id !== userId));
-      
-      if (onApprovalStatusChange) {
-        onApprovalStatusChange();
-      }
-    } catch (error) {
-      console.error('Error approving user:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to approve user',
-        variant: 'destructive',
-        duration: 1000,
-      });
-    } finally {
-      setProcessingUser(null);
-    }
-  };
-
-  const handleRejectUser = async (userId: string) => {
-    try {
-      setProcessingUser(userId);
-      
-      console.log('Rejecting user with ID:', userId);
-      
-      const { error, status } = await supabase
-        .from('users')
-        .update({ 
-          status: 'Rejected',
-          updated_by: currentUser?.user_id,
-          updated_date: new Date().toISOString()
-        })
-        .eq('user_id', userId);
-      
-      console.log('Reject response status:', status);
-      
-      if (error) {
-        console.error('Error in reject operation:', error);
-        throw error;
+      if (verifyData.status !== 'Rejected') {
+        console.error('Rejection did not persist correctly. Expected status "Rejected" but got:', verifyData.status);
+        throw new Error('Rejection did not persist correctly');
       }
       
       toast({
         title: 'User Rejected',
         description: 'The user account has been rejected',
-        duration: 1000,
+        duration: 3000,
       });
       
-      setPendingUsers(pendingUsers.filter(user => user.user_id !== userId));
+      // Refresh the pending users list
+      await fetchPendingUsers();
       
-      if (onApprovalStatusChange) {
-        onApprovalStatusChange();
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error rejecting user:', error);
       toast({
         title: 'Error',
-        description: 'Failed to reject user',
+        description: `Failed to reject user: ${error.message || 'Unknown error'}`,
         variant: 'destructive',
-        duration: 1000,
+        duration: 3000,
       });
     } finally {
       setProcessingUser(null);
