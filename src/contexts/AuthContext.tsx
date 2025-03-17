@@ -67,13 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (upsertError) {
           console.log("Upsert failed but this is expected in some cases:", upsertError);
-          // Continue to the next approach
         } else {
           console.log("Upsert successful:", upsertResult);
         }
       } catch (error) {
         console.log("Upsert attempt failed:", error);
-        // Continue to the next approach
       }
       
       console.log("Attempting to fetch user with standard query");
@@ -124,9 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
           
           toast({
-            title: "Permission Notice",
+            title: "Warning",
             description: "Using limited profile due to database permissions. Some features may be restricted.",
-            variant: "default",
+            variant: "warning",
           });
           return;
         }
