@@ -75,12 +75,23 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         console.log("Auth user created successfully:", data.user.id);
         console.log("User metadata:", data.user.user_metadata);
         
-        // First delay slightly to ensure auth is completed
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Sign in the user temporarily to allow them to insert their own record
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: values.email,
+          password: values.password,
+        });
         
-        // Explicitly insert a new record to ensure all fields are saved correctly
-        // This bypasses any trigger that might be setting incorrect values
-        const { error: insertError, data: insertData } = await supabase
+        if (signInError) {
+          console.error('Error signing in after signup:', signInError);
+        } else {
+          console.log("User signed in temporarily to create profile");
+        }
+        
+        // Add a delay to ensure auth state is processed
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Insert user record with the user themselves authenticated
+        const { error: insertError } = await supabase
           .from('users')
           .insert({
             user_id: data.user.id,
@@ -92,13 +103,12 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             role: 'User'
           });
 
-        console.log("Insert response:", { error: insertError, data: insertData });
+        console.log("Insert response:", { error: insertError });
 
         if (insertError) {
           console.error('Error inserting user details:', insertError);
           
-          // Even if we can't insert the record directly, the trigger might have created it
-          // Check if a user record was created anyway
+          // Check if a user record was created anyway (by trigger)
           const { data: userCheck } = await supabase
             .from('users')
             .select('*')

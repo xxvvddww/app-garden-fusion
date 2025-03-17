@@ -48,32 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        console.log("Attempting direct upsert to ensure user exists");
-        const { data: upsertResult, error: upsertError } = await supabase
-          .from('users')
-          .upsert([{
-            user_id: userId,
-            email: authUser.email,
-            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
-            mobile_number: authUser.user_metadata?.mobile_number,
-            tsa_id: authUser.user_metadata?.tsa_id,
-            role: 'Admin', // Set role to Admin for now to ensure access
-            status: 'Active'
-          }], { 
-            onConflict: 'user_id',
-            ignoreDuplicates: false
-          });
-        
-        if (upsertError) {
-          console.log("Upsert failed but this is expected in some cases:", upsertError);
-        } else {
-          console.log("Upsert successful:", upsertResult);
-        }
-      } catch (error) {
-        console.log("Upsert attempt failed:", error);
-      }
-      
       console.log("Attempting to fetch user with standard query");
       const { data: existingUsers, error: queryError } = await supabase
         .from('users')
@@ -94,40 +68,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (queryError) {
         console.error('Error checking user profile:', queryError);
         
-        if (queryError.message.includes('permission') || 
-            queryError.message.includes('policy') || 
-            queryError.code === 'PGRST301' ||
-            queryError.message.includes('infinite recursion')) {
+        // Create a fallback user if needed
+        const minimumUserData: User = {
+          user_id: userId,
+          email: authUser.email || '',
+          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+          role: 'User', // Default to User
+          status: 'Pending',
+          created_by: null,
+          created_date: null,
+          mobile_number: authUser.user_metadata?.mobile_number || null,
+          tsa_id: authUser.user_metadata?.tsa_id || null,
+          updated_by: null,
+          updated_date: null
+        };
+        
+        console.log("Created fallback user profile:", minimumUserData);
+        
+        // Try to insert this user record
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([minimumUserData]);
           
-          console.log("Detected permission issue, attempting bypass method");
-          
-          const minimumUserData: User = {
-            user_id: userId,
-            email: authUser.email || '',
-            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
-            role: 'Admin', // Default to Admin to ensure access
-            status: 'Active',
-            created_by: null,
-            created_date: null,
-            mobile_number: authUser.user_metadata?.mobile_number || null,
-            tsa_id: authUser.user_metadata?.tsa_id || null,
-            updated_by: null,
-            updated_date: null
-          };
-          
-          console.log("Created fallback user profile:", minimumUserData);
-          setUser(minimumUserData);
-          setLoading(false);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(minimumUserData));
-          localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
-          
+        if (insertError) {
+          console.error('Error inserting fallback user:', insertError);
           toast({
             title: "Warning",
             description: "Using limited profile due to database permissions. Some features may be restricted.",
             variant: "warning",
           });
-          return;
+        } else {
+          console.log("Inserted fallback user successfully");
         }
+        
+        setUser(minimumUserData);
+        setLoading(false);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(minimumUserData));
+        localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
+        return;
       }
       
       setLoading(false);
