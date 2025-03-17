@@ -75,6 +75,9 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         console.log("Auth user created successfully:", data.user.id);
         console.log("User metadata:", data.user.user_metadata);
         
+        // First delay slightly to ensure auth is completed
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Explicitly insert a new record to ensure all fields are saved correctly
         // This bypasses any trigger that might be setting incorrect values
         const { error: insertError, data: insertData } = await supabase
@@ -93,11 +96,29 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
 
         if (insertError) {
           console.error('Error inserting user details:', insertError);
-          toast({
-            title: 'Signup partially completed',
-            description: 'Your account was created but some details could not be saved.',
-            variant: 'destructive',
-          });
+          
+          // Even if we can't insert the record directly, the trigger might have created it
+          // Check if a user record was created anyway
+          const { data: userCheck } = await supabase
+            .from('users')
+            .select('*')
+            .eq('user_id', data.user.id)
+            .single();
+            
+          console.log("User check result:", userCheck);
+            
+          if (!userCheck) {
+            toast({
+              title: 'Signup partially completed',
+              description: 'Your account was created but some details could not be saved. Please contact support.',
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: 'Account created',
+              description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+            });
+          }
         } else {
           console.log("User data successfully inserted into users table");
           toast({
