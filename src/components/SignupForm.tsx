@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -46,6 +45,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
     setIsSubmitting(true);
     
     try {
+      console.log("Starting signup process with values:", values);
+      
       // First, create the auth user with Supabase
       const { data, error } = await supabase.auth.signUp({
         email: values.email,
@@ -70,48 +71,30 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       }
 
       if (data.user) {
-        // Explicitly update the users table with additional fields and set status to Pending
-        const { error: updateError } = await supabase
+        console.log("Auth user created successfully:", data.user.id);
+        
+        // Insert the user data directly rather than update
+        const { error: insertError } = await supabase
           .from('users')
-          .update({
+          .insert({
+            user_id: data.user.id,
+            email: values.email,
+            name: values.name,
             mobile_number: values.mobileNumber,
             tsa_id: values.tsaId,
             status: 'Pending',
-            name: values.name,
             role: 'User'
-          })
-          .eq('user_id', data.user.id);
+          });
 
-        if (updateError) {
-          console.error('Error updating user details:', updateError);
-          
-          // Make a second attempt to create the user record if it doesn't exist
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert({
-              user_id: data.user.id,
-              email: values.email,
-              name: values.name,
-              mobile_number: values.mobileNumber,
-              tsa_id: values.tsaId,
-              status: 'Pending',
-              role: 'User'
-            });
-            
-          if (insertError) {
-            console.error('Error inserting user details:', insertError);
-            toast({
-              title: 'Signup partially completed',
-              description: 'Your account was created but some details could not be saved.',
-              variant: 'destructive',
-            });
-          } else {
-            toast({
-              title: 'Account created',
-              description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
-            });
-          }
+        if (insertError) {
+          console.error('Error inserting user details:', insertError);
+          toast({
+            title: 'Signup partially completed',
+            description: 'Your account was created but some details could not be saved.',
+            variant: 'destructive',
+          });
         } else {
+          console.log("User data successfully inserted into users table");
           toast({
             title: 'Account created',
             description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',

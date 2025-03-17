@@ -105,8 +105,10 @@ serve(async (req) => {
       );
     }
 
-    // When an admin creates a user, set the status to Active directly (no need for approval)
-    const { error: updateError } = await supabaseClient
+    console.log("Auth user created by admin:", authData.user.id);
+    
+    // When an admin creates a user, insert a new record with all fields
+    const { error: insertError } = await supabaseClient
       .from("users")
       .insert({
         user_id: authData.user.id,
@@ -119,9 +121,9 @@ serve(async (req) => {
         created_by: user.id,
       });
 
-    if (updateError) {
-      console.error("Error updating user details:", updateError);
-      // We don't want to fail the request if this part fails
+    if (insertError) {
+      console.error("Error inserting user details:", insertError);
+      // We still return success but log the error
     }
 
     // Log the audit event
