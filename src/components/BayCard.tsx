@@ -27,7 +27,6 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
       onClick={() => onClick && onClick(bay)}
     >
       <CardContent className="flex flex-col items-center justify-center p-3 h-full">
-        {/* Only show the car icon on desktop */}
         {!isMobile && (
           <div className="rounded-full bg-[#162240] p-2 mb-2">
             <Car 
