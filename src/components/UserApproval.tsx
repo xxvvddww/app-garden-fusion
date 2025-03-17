@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, castToUser } from '@/types';
@@ -9,7 +8,11 @@ import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, XCircle } from 'lucide-react';
 
-const UserApproval = () => {
+interface UserApprovalProps {
+  onApprovalStatusChange?: () => void;
+}
+
+const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingUser, setProcessingUser] = useState<string | null>(null);
@@ -32,6 +35,10 @@ const UserApproval = () => {
       
       const typedUsers = (data || []).map(castToUser);
       setPendingUsers(typedUsers);
+      
+      if (onApprovalStatusChange) {
+        onApprovalStatusChange();
+      }
     } catch (error) {
       console.error('Error fetching pending users:', error);
       toast({
@@ -50,7 +57,10 @@ const UserApproval = () => {
       
       const { error } = await supabase
         .from('users')
-        .update({ status: 'Active' })
+        .update({ 
+          status: 'Active',
+          role: 'User'
+        })
         .eq('user_id', userId);
       
       if (error) throw error;
@@ -58,16 +68,21 @@ const UserApproval = () => {
       toast({
         title: 'User Approved',
         description: 'The user account has been approved successfully',
+        duration: 1000,
       });
       
-      // Remove the approved user from the list
       setPendingUsers(pendingUsers.filter(user => user.user_id !== userId));
+      
+      if (onApprovalStatusChange) {
+        onApprovalStatusChange();
+      }
     } catch (error) {
       console.error('Error approving user:', error);
       toast({
         title: 'Error',
         description: 'Failed to approve user',
         variant: 'destructive',
+        duration: 1000,
       });
     } finally {
       setProcessingUser(null);
@@ -88,16 +103,21 @@ const UserApproval = () => {
       toast({
         title: 'User Rejected',
         description: 'The user account has been rejected',
+        duration: 1000,
       });
       
-      // Remove the rejected user from the list
       setPendingUsers(pendingUsers.filter(user => user.user_id !== userId));
+      
+      if (onApprovalStatusChange) {
+        onApprovalStatusChange();
+      }
     } catch (error) {
       console.error('Error rejecting user:', error);
       toast({
         title: 'Error',
         description: 'Failed to reject user',
         variant: 'destructive',
+        duration: 1000,
       });
     } finally {
       setProcessingUser(null);

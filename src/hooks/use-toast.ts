@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import type {
@@ -155,6 +156,7 @@ function toast({ ...props }: Toast) {
       ...props,
       id,
       open: true,
+      duration: props.duration ?? 1000, // Default to 1 second (1000ms)
       onOpenChange: (open) => {
         if (!open) dismiss()
       },

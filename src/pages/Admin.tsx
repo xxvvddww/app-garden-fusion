@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { User, Bay, castToUser, castToBay } from '@/types';
@@ -46,13 +46,7 @@ const Admin = () => {
   const [removedDays, setRemovedDays] = useState<string[]>([]);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
 
-  useEffect(() => {
-    console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
-    fetchPendingUsersCount();
-    setLoading(false);
-  }, [user, session]);
-
-  const fetchPendingUsersCount = async () => {
+  const fetchPendingUsersCount = useCallback(async () => {
     try {
       const { count, error } = await supabase
         .from('users')
@@ -65,7 +59,13 @@ const Admin = () => {
     } catch (error) {
       console.error('Error fetching pending users count:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    console.log("Current auth state:", { user, session, isAdmin: user?.role === 'Admin' });
+    fetchPendingUsersCount();
+    setLoading(false);
+  }, [user, session, fetchPendingUsersCount]);
 
   useEffect(() => {
     if (selectedUser && selectedBay) {
@@ -449,7 +449,7 @@ const Admin = () => {
               <CardDescription>Manage new user signups that require approval</CardDescription>
             </CardHeader>
             <CardContent>
-              <UserApproval />
+              <UserApproval onApprovalStatusChange={fetchPendingUsersCount} />
             </CardContent>
           </Card>
         </TabsContent>
