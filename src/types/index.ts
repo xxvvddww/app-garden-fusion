@@ -25,6 +25,7 @@ export interface Bay {
   updated_by?: string;
   reserved_by_you?: boolean;
   reserved_by?: string;
+  is_permanent?: boolean;
 }
 
 export interface PermanentAssignment {
@@ -66,7 +67,8 @@ export const castToBay = (data: any): Bay => ({
   bay_number: Number(data.bay_number), // Ensure bay_number is cast to a number
   status: data.status as Bay['status'],
   reserved_by_you: data.reserved_by_you || false,
-  reserved_by: data.reserved_by || undefined
+  reserved_by: data.reserved_by || undefined,
+  is_permanent: data.is_permanent || false
 });
 
 export const castToDailyClaim = (data: any): DailyClaim => ({

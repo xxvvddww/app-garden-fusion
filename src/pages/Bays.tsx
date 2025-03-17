@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -8,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import BayCard from '@/components/BayCard';
 import ReserveBayDialog from '@/components/ReserveBayDialog';
+import MakeBayAvailableDialog from '@/components/MakeBayAvailableDialog';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -35,7 +35,8 @@ const Bays = () => {
   const [bays, setBays] = useState<Bay[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBay, setSelectedBay] = useState<Bay | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
+  const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
   const [userNames, setUserNames] = useState<{[key: string]: string}>({});
   const { toast } = useToast();
   const { user } = useAuth();
@@ -197,7 +198,8 @@ const Bays = () => {
             ...baseBay,
             status: 'Reserved' as Bay['status'],
             reserved_by_you: claimedByUser,
-            reserved_by: claimedByUserId
+            reserved_by: claimedByUserId,
+            is_permanent: false
           };
         }
         
@@ -223,7 +225,8 @@ const Bays = () => {
             ...baseBay,
             status: 'Reserved' as Bay['status'],
             reserved_by_you: assignedToUser,
-            reserved_by: assignedToUserId
+            reserved_by: assignedToUserId,
+            is_permanent: true
           };
         }
         
@@ -249,7 +252,14 @@ const Bays = () => {
 
   const handleBayClick = (bay: Bay) => {
     setSelectedBay(bay);
-    setDialogOpen(true);
+    
+    // If the bay is permanently assigned to the current user, open the make available dialog
+    if (bay.reserved_by_you && bay.is_permanent) {
+      setAvailabilityDialogOpen(true);
+    } else {
+      // Otherwise, open the reserve dialog (which includes revoke functionality for admins)
+      setReserveDialogOpen(true);
+    }
   };
 
   if (loading) {
@@ -294,6 +304,7 @@ const Bays = () => {
                     onClick={handleBayClick}
                     reservedByName={bay.reserved_by ? userNames[bay.reserved_by] : undefined}
                     isAdmin={isAdmin}
+                    isPermanent={bay.is_permanent}
                   />
                 ))
               }
@@ -320,10 +331,17 @@ const Bays = () => {
 
       <ReserveBayDialog 
         bay={selectedBay}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        open={reserveDialogOpen}
+        onOpenChange={setReserveDialogOpen}
         onSuccess={fetchBays}
         isAdmin={isAdmin}
+      />
+
+      <MakeBayAvailableDialog 
+        bay={selectedBay}
+        open={availabilityDialogOpen}
+        onOpenChange={setAvailabilityDialogOpen}
+        onSuccess={fetchBays}
       />
     </div>
   );

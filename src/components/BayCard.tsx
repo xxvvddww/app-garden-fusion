@@ -1,5 +1,5 @@
 
-import { Car, UserCheck } from 'lucide-react';
+import { Car, UserCheck, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bay } from '@/types';
@@ -10,9 +10,10 @@ interface BayCardProps {
   onClick?: (bay: Bay) => void;
   reservedByName?: string;
   isAdmin?: boolean;
+  isPermanent?: boolean;
 }
 
-const BayCard = ({ bay, onClick, reservedByName, isAdmin }: BayCardProps) => {
+const BayCard = ({ bay, onClick, reservedByName, isAdmin, isPermanent }: BayCardProps) => {
   const isReservedByYou = bay.reserved_by_you === true;
   const isAvailable = bay.status === 'Available';
   const isReservedByOther = bay.status === 'Reserved' && !isReservedByYou;
@@ -79,6 +80,13 @@ const BayCard = ({ bay, onClick, reservedByName, isAdmin }: BayCardProps) => {
         {isReservedByYou && (
           <div className="absolute top-2 right-2 flex items-center">
             <UserCheck className="w-4 h-4 text-green-400" />
+          </div>
+        )}
+
+        {/* Add indicator for permanent bay assignment */}
+        {isPermanent && bay.status === 'Reserved' && (
+          <div className="absolute top-2 left-2 flex items-center">
+            <Clock className="w-3 h-3 text-blue-400" />
           </div>
         )}
 
