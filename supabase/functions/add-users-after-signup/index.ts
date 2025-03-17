@@ -67,7 +67,6 @@ serve(async (req) => {
     console.log("Request data:", requestData);
 
     // Insert the user into the users table with the provided metadata and default values
-    // Set status to "Active" instead of "Pending" so they can use the app right away
     const { data: insertedUser, error: insertError } = await supabaseClient
       .from("users")
       .insert({
@@ -77,7 +76,7 @@ serve(async (req) => {
         mobile_number: user.user_metadata.mobile_number || requestData.mobileNumber,
         tsa_id: user.user_metadata.tsa_id || requestData.tsaId,
         role: "User",
-        status: "Active"  // Changed from "Pending" to "Active"
+        status: "Pending"
       })
       .select()
       .single();

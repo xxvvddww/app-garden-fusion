@@ -11,7 +11,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -34,7 +33,6 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { refreshUserData } = useAuth();
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -82,26 +80,22 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         console.log("Auth user created successfully:", data.user.id);
         
         try {
-          // Sign in the user if not already signed in
-          let sessionData = await supabase.auth.getSession();
+          // Sign in the user to get a session token
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: values.email,
+            password: values.password,
+          });
           
-          if (!sessionData.data.session) {
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-              email: values.email,
-              password: values.password,
-            });
-            
-            if (signInError) {
-              console.error("Error signing in after signup:", signInError);
-              throw new Error(`Failed to sign in: ${signInError.message}`);
-            }
-            
-            // Get the session token after signing in
-            sessionData = await supabase.auth.getSession();
-            
-            if (!sessionData.data.session) {
-              throw new Error("Failed to get session after sign in");
-            }
+          if (signInError) {
+            console.error("Error signing in after signup:", signInError);
+            throw new Error(`Failed to sign in: ${signInError.message}`);
+          }
+          
+          // Get the session token to use for the edge function call
+          const { data: sessionData } = await supabase.auth.getSession();
+          
+          if (!sessionData.session) {
+            throw new Error("Failed to get session after sign in");
           }
           
           // Call the edge function to create the user record in the users table
@@ -110,7 +104,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             {
               method: 'POST',
               headers: {
-                Authorization: `Bearer ${sessionData.data.session.access_token}`,
+                Authorization: `Bearer ${sessionData.session.access_token}`,
               },
               body: {
                 name: values.name,
@@ -128,17 +122,16 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
           
           console.log("Edge function response:", functionData);
           
-          // Update auth context to refresh user data
-          await refreshUserData();
+          // Sign out the user since they need approval
+          await supabase.auth.signOut();
           
           toast({
             title: 'Account created',
-            description: 'Your account has been created and you are now logged in. Your account is pending admin approval.',
-            variant: 'default',
+            description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
           });
           
-          // Redirect to main page
-          navigate('/');
+          // Show success message and go back to login form
+          onToggleMode();
         } catch (error) {
           console.error("Error in post-signup process:", error);
           setErrorMessage(`Error saving user profile: ${(error as Error).message}`);
@@ -147,7 +140,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             description: 'Your account was created but some details could not be saved.',
             variant: 'warning',
           });
-          navigate('/'); // Still navigate to main page since the auth user was created
+          onToggleMode(); // Still go back to login since the auth user was created
         }
       }
     } catch (error) {
