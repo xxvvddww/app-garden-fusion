@@ -28,6 +28,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
   const [loading, setLoading] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
+  const [isReservedByYou, setIsReservedByYou] = useState(false);
   const [unavailableReason, setUnavailableReason] = useState('');
   const { toast } = useToast();
   const { user } = useAuth();
@@ -49,6 +50,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
       // First check if bay is under maintenance
       if (bay.status === 'Maintenance') {
         setIsAvailable(false);
+        setIsReservedByYou(false);
         setUnavailableReason('This bay is currently under maintenance.');
         return;
       }
@@ -56,21 +58,25 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
       // Check daily claims
       const { data: dailyClaims, error: claimsError } = await supabase
         .from('daily_claims')
-        .select('user_id')
+        .select('user_id, status')
         .eq('bay_id', bay.bay_id)
-        .eq('claim_date', today)
-        .eq('status', 'Active');
+        .eq('claim_date', today);
       
       if (claimsError) throw claimsError;
       
-      if (dailyClaims.length > 0) {
-        const isClaimedByCurrentUser = dailyClaims.some(claim => claim.user_id === user.user_id);
+      // Filter for active claims only
+      const activeClaims = dailyClaims.filter(claim => claim.status === 'Active');
+      
+      if (activeClaims.length > 0) {
+        const isClaimedByCurrentUser = activeClaims.some(claim => claim.user_id === user.user_id);
         
         if (isClaimedByCurrentUser) {
           setIsAvailable(false);
+          setIsReservedByYou(true);
           setUnavailableReason('You have already reserved this bay for today.');
         } else {
           setIsAvailable(false);
+          setIsReservedByYou(false);
           setUnavailableReason('This bay has already been reserved for today.');
         }
         return;
@@ -89,10 +95,23 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
         const isAssignedToCurrentUser = permanentAssignments.some(assignment => assignment.user_id === user.user_id);
         
         if (isAssignedToCurrentUser) {
-          setIsAvailable(false);
-          setUnavailableReason('This bay is already permanently assigned to you.');
+          // Check if there's a cancelled claim for today
+          const hasCancelledClaim = dailyClaims.some(
+            claim => claim.user_id === user.user_id && claim.status === 'Cancelled'
+          );
+          
+          if (hasCancelledClaim) {
+            setIsAvailable(true);
+            setIsReservedByYou(false);
+            setUnavailableReason('');
+          } else {
+            setIsAvailable(false);
+            setIsReservedByYou(true);
+            setUnavailableReason('This bay is already permanently assigned to you.');
+          }
         } else {
           setIsAvailable(false);
+          setIsReservedByYou(false);
           setUnavailableReason('This bay is permanently assigned to another user.');
         }
         return;
@@ -100,6 +119,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
       
       // Bay is available
       setIsAvailable(true);
+      setIsReservedByYou(false);
       setUnavailableReason('');
       
     } catch (error) {
@@ -115,7 +135,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
   };
 
   const handleReserve = async () => {
-    if (!bay || !user || !isAvailable) return;
+    if (!bay || !user) return;
     
     try {
       setLoading(true);
@@ -132,17 +152,6 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
         });
       
       if (claimError) throw claimError;
-      
-      // Update bay status to Reserved
-      const { error: bayError } = await supabase
-        .from('bays')
-        .update({ 
-          status: 'Reserved' as Bay['status'],
-          updated_by: user.user_id
-        })
-        .eq('bay_id', bay.bay_id);
-      
-      if (bayError) throw bayError;
       
       toast({
         title: 'Bay Reserved',
@@ -163,6 +172,121 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
       setLoading(false);
     }
   };
+
+  const handleUnreserve = async () => {
+    if (!bay || !user || !isReservedByYou) return;
+    
+    try {
+      setLoading(true);
+      
+      console.log(`Attempting to unreserve bay ${bay.bay_id} for user ${user.user_id} on ${today}`);
+      
+      // First check if this is a permanent assignment that we need to cancel for today
+      const { data: permanentAssignments, error: assignmentError } = await supabase
+        .from('permanent_assignments')
+        .select('assignment_id')
+        .eq('bay_id', bay.bay_id)
+        .eq('user_id', user.user_id)
+        .or(`day_of_week.eq.${currentDayOfWeek},day_of_week.eq.All Days`);
+      
+      if (assignmentError) throw assignmentError;
+      
+      if (permanentAssignments.length > 0) {
+        console.log('This is a permanent assignment, creating a cancellation record');
+        
+        // Check if there's already a cancelled claim for today
+        const { data: existingClaims, error: checkError } = await supabase
+          .from('daily_claims')
+          .select('claim_id, status')
+          .eq('bay_id', bay.bay_id)
+          .eq('user_id', user.user_id)
+          .eq('claim_date', today);
+        
+        if (checkError) throw checkError;
+        
+        if (existingClaims.length > 0) {
+          // If there's an existing claim that's active, update it to cancelled
+          const activeClaim = existingClaims.find(claim => claim.status === 'Active');
+          
+          if (activeClaim) {
+            console.log(`Updating existing claim ${activeClaim.claim_id} to Cancelled`);
+            
+            const { error: updateError } = await supabase
+              .from('daily_claims')
+              .update({ status: 'Cancelled' })
+              .eq('claim_id', activeClaim.claim_id)
+              .eq('user_id', user.user_id);
+            
+            if (updateError) throw updateError;
+          } else {
+            // If there's no active claim but there is a cancelled one, no action needed
+            console.log('Bay is already cancelled for today');
+          }
+        } else {
+          // Create a new cancelled claim
+          console.log('Creating new cancelled claim for permanent assignment');
+          
+          const { error: insertError } = await supabase
+            .from('daily_claims')
+            .insert({
+              bay_id: bay.bay_id,
+              user_id: user.user_id,
+              claim_date: today,
+              status: 'Cancelled',
+              created_by: user.user_id
+            });
+          
+          if (insertError) throw insertError;
+        }
+      } else {
+        // This is a daily claim, so we need to find and cancel it
+        console.log('This is a daily claim, finding and updating it');
+        
+        const { data: existingClaims, error: fetchError } = await supabase
+          .from('daily_claims')
+          .select('claim_id')
+          .eq('bay_id', bay.bay_id)
+          .eq('user_id', user.user_id)
+          .eq('claim_date', today)
+          .eq('status', 'Active');
+        
+        if (fetchError) throw fetchError;
+        
+        if (existingClaims.length > 0) {
+          console.log(`Updating claim ${existingClaims[0].claim_id} to Cancelled`);
+          
+          const { error: updateError } = await supabase
+            .from('daily_claims')
+            .update({ status: 'Cancelled' })
+            .eq('claim_id', existingClaims[0].claim_id)
+            .eq('user_id', user.user_id);
+          
+          if (updateError) throw updateError;
+        } else {
+          console.log('No active claim found to cancel');
+          throw new Error('No active reservation found');
+        }
+      }
+      
+      toast({
+        title: 'Bay Released',
+        description: `You have successfully released bay ${bay.bay_number} for today.`,
+      });
+      
+      onOpenChange(false);
+      if (onSuccess) onSuccess();
+      
+    } catch (error) {
+      console.error('Error unreserving bay:', error);
+      toast({
+        title: 'Release failed',
+        description: 'There was an error releasing the bay. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
   
   if (!bay) return null;
   
@@ -170,7 +294,9 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Reserve Parking Bay</DialogTitle>
+          <DialogTitle>
+            {isReservedByYou ? 'Release Parking Bay' : 'Reserve Parking Bay'}
+          </DialogTitle>
           <DialogDescription>
             Bay {bay.bay_number} - {bay.location}
           </DialogDescription>
@@ -183,7 +309,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
           </div>
         ) : (
           <div className="grid gap-4 py-4">
-            {!isAvailable ? (
+            {!isAvailable && !isReservedByYou ? (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
@@ -194,11 +320,15 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
               <>
                 <div className="flex items-center gap-2 text-sm">
                   <CalendarIcon className="h-4 w-4" />
-                  <span>Reservation date: {today}</span>
+                  <span>Date: {today}</span>
                 </div>
                 
                 <div className="bg-muted/50 p-3 rounded-md text-sm">
-                  <p>Once reserved, this bay will be assigned to you for the rest of the day.</p>
+                  {isReservedByYou ? (
+                    <p>This bay is currently reserved by you. You can release it to make it available for others.</p>
+                  ) : (
+                    <p>Once reserved, this bay will be assigned to you for the rest of the day.</p>
+                  )}
                 </div>
               </>
             )}
@@ -207,19 +337,36 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
         
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={handleReserve}
-            disabled={loading || !isAvailable || checkingAvailability}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Reserving...
-              </>
-            ) : (
-              'Reserve Bay'
-            )}
-          </Button>
+          {isReservedByYou ? (
+            <Button
+              onClick={handleUnreserve}
+              disabled={loading || checkingAvailability}
+              variant="destructive"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Releasing...
+                </>
+              ) : (
+                'Release Bay'
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleReserve}
+              disabled={loading || !isAvailable || checkingAvailability}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Reserving...
+                </>
+              ) : (
+                'Reserve Bay'
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
