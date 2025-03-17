@@ -54,7 +54,7 @@ const Login = () => {
     const intervalId = setInterval(() => {
       colorIndex = (colorIndex + 1) % colors.length;
       setLogoGlowColor(colors[colorIndex]);
-    }, 1000); // Changed from 3000ms to 1000ms for faster transitions
+    }, 3000);
     
     return () => clearInterval(intervalId);
   }, []);
@@ -142,10 +142,10 @@ const Login = () => {
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center mb-4">
             <div 
-              className="relative flex justify-center items-center water-effect"
+              className="relative flex justify-center items-center"
               style={{
-                filter: `drop-shadow(0 0 15px ${logoGlowColor})`, // Increased glow intensity
-                transition: 'filter 0.5s ease-in-out' // Faster transition
+                filter: `drop-shadow(0 0 10px ${logoGlowColor})`,
+                transition: 'filter 1.5s ease-in-out'
               }}
             >
               <img 
