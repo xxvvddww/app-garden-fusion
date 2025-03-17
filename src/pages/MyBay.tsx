@@ -88,27 +88,44 @@ const MyBay = () => {
   // Get unique bays from assignments to avoid duplicates
   const getMyBays = () => {
     const uniqueBaysMap = new Map<string, Bay>();
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
     
-    // Add permanent assignment bays
+    // Add permanent assignment bays for today's day of the week
     assignments.forEach(assignment => {
-      if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
-        uniqueBaysMap.set(assignment.bay.bay_id, {
-          ...assignment.bay,
-          status: 'Reserved' as Bay['status'],
-          reserved_by_you: true
-        });
+      // Only include assignments for today or "All Days"
+      if (assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days') {
+        if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
+          // Check if there's a cancelled claim for today
+          const hasCancelledClaim = dailyClaims.some(
+            claim => claim.bay_id === assignment.bay.bay_id && 
+                    claim.claim_date === today && 
+                    claim.status === 'Cancelled'
+          );
+          
+          // Only add to map if not cancelled for today
+          if (!hasCancelledClaim) {
+            uniqueBaysMap.set(assignment.bay.bay_id, {
+              ...assignment.bay,
+              status: 'Reserved' as Bay['status'],
+              reserved_by_you: true
+            });
+          }
+        }
       }
     });
     
     // Add daily claim bays
     dailyClaims.forEach(claim => {
-      const matchingBay = assignments.find(a => a.bay.bay_id === claim.bay_id)?.bay;
-      if (matchingBay && !uniqueBaysMap.has(matchingBay.bay_id)) {
-        uniqueBaysMap.set(matchingBay.bay_id, {
-          ...matchingBay,
-          status: 'Reserved' as Bay['status'],
-          reserved_by_you: true
-        });
+      if (claim.status === 'Active') {
+        const matchingBay = assignments.find(a => a.bay.bay_id === claim.bay_id)?.bay;
+        if (matchingBay && !uniqueBaysMap.has(matchingBay.bay_id)) {
+          uniqueBaysMap.set(matchingBay.bay_id, {
+            ...matchingBay,
+            status: 'Reserved' as Bay['status'],
+            reserved_by_you: true
+          });
+        }
       }
     });
     
@@ -232,8 +249,8 @@ const MyBay = () => {
       });
       
       setAvailabilityDialogOpen(false);
-      fetchUserAssignments();
-      fetchUserDailyClaims();
+      // Refresh data to update UI
+      await Promise.all([fetchUserAssignments(), fetchUserDailyClaims()]);
     } catch (error) {
       console.error('Error updating bay status:', error);
       toast({

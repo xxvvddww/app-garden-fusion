@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -41,9 +40,8 @@ const Bays = () => {
       // 2. Get daily claims for today
       const { data: dailyClaimsData, error: claimsError } = await supabase
         .from('daily_claims')
-        .select('bay_id, user_id')
-        .eq('claim_date', today)
-        .eq('status', 'Active');
+        .select('bay_id, user_id, status')
+        .eq('claim_date', today);
         
       if (claimsError) throw claimsError;
       
@@ -61,11 +59,26 @@ const Bays = () => {
       console.log('Permanent assignments:', permanentAssignmentsData);
       
       // Create maps for quick lookups
-      const dailyClaimsMap = new Map();
-      dailyClaimsData.forEach(claim => dailyClaimsMap.set(claim.bay_id, claim.user_id));
+      // For daily claims, we need to consider both active and cancelled claims
+      const activeDailyClaimsMap = new Map();
+      const cancelledDailyClaimsMap = new Map();
+      
+      dailyClaimsData.forEach(claim => {
+        if (claim.status === 'Active') {
+          activeDailyClaimsMap.set(claim.bay_id, claim.user_id);
+        } else if (claim.status === 'Cancelled') {
+          // Keep track of which bays have been cancelled by which user
+          if (!cancelledDailyClaimsMap.has(claim.bay_id)) {
+            cancelledDailyClaimsMap.set(claim.bay_id, new Set());
+          }
+          cancelledDailyClaimsMap.get(claim.bay_id).add(claim.user_id);
+        }
+      });
       
       const permanentAssignmentsMap = new Map();
-      permanentAssignmentsData.forEach(assignment => permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id));
+      permanentAssignmentsData.forEach(assignment => {
+        permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+      });
       
       // Collect all user IDs to fetch their names
       const userIds = new Set<string>();
@@ -98,9 +111,9 @@ const Bays = () => {
           return baseBay;
         }
         
-        // Check if bay is claimed for today
-        if (dailyClaimsMap.has(bay.bay_id)) {
-          const claimedByUserId = dailyClaimsMap.get(bay.bay_id);
+        // Check if bay is claimed for today (active claim takes precedence)
+        if (activeDailyClaimsMap.has(bay.bay_id)) {
+          const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
           const claimedByUser = claimedByUserId === user?.user_id;
           return {
             ...baseBay,
@@ -110,10 +123,24 @@ const Bays = () => {
           };
         }
         
-        // Check if bay is permanently assigned for today
+        // Check if bay is permanently assigned for today and hasn't been cancelled by user
         if (permanentAssignmentsMap.has(bay.bay_id)) {
           const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
           const assignedToUser = assignedToUserId === user?.user_id;
+          
+          // Check if the user has cancelled their permanent assignment for today
+          const hasCancelled = cancelledDailyClaimsMap.has(bay.bay_id) && 
+                              cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
+          
+          // If user has cancelled their permanent assignment, bay is available
+          if (hasCancelled && assignedToUser) {
+            return {
+              ...baseBay,
+              status: 'Available' as Bay['status']
+            };
+          }
+          
+          // Otherwise, bay is still reserved
           return {
             ...baseBay,
             status: 'Reserved' as Bay['status'],
