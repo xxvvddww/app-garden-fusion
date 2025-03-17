@@ -136,9 +136,8 @@ const MakeBayAvailableDialog = ({
       
       // Force a refresh of the data after cancellation
       if (onSuccess) {
-        setTimeout(() => {
-          onSuccess();
-        }, 100); // Small delay to ensure DB operations complete
+        // Ensure callback is executed
+        onSuccess();
       }
       
       toast({

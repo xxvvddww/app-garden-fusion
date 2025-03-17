@@ -51,7 +51,7 @@ export const BayAssignmentsTable = () => {
         
       if (permanentError) throw permanentError;
       
-      // Fetch daily claims for today
+      // Fetch daily claims for today (both active and cancelled)
       const { data: dailyData, error: dailyError } = await supabase
         .from('daily_claims')
         .select(`
@@ -64,6 +64,8 @@ export const BayAssignmentsTable = () => {
         .eq('claim_date', today);
         
       if (dailyError) throw dailyError;
+      
+      console.log('Fetched daily claims for table:', dailyData);
       
       // Fetch user names
       const userIds = new Set<string>();
@@ -97,45 +99,60 @@ export const BayAssignmentsTable = () => {
       // Combine all data
       const allReservations: BayReservation[] = [];
       
-      // Add permanent assignments
+      // Add permanent assignments that apply to today
       permanentData.forEach(pa => {
-        // Check if there's a cancellation for today
-        const dailyClaims = dailyClaimsByBay.get(pa.bay_id) || [];
-        const cancelledForToday = dailyClaims.some(
-          claim => claim.user_id === pa.user_id && claim.status === 'Cancelled'
-        );
-        
-        const bayNumber = baysData.find(b => b.bay_id === pa.bay_id)?.bay_number;
-        
-        if (bayNumber) {
-          allReservations.push({
-            bay_id: pa.bay_id,
-            bay_number: bayNumber,
-            reservation_type: 'Permanent',
-            day_or_date: pa.day_of_week,
-            user_name: userNames[pa.user_id] || 'Unknown',
-            status: cancelledForToday ? 'Cancelled for today' : 'Active',
-            assignment_id: pa.assignment_id
-          });
+        // Only include permanent assignments for today or "All Days"
+        if (pa.day_of_week === currentDayOfWeek || pa.day_of_week === 'All Days') {
+          // Check if there's a cancellation for today
+          const dailyClaims = dailyClaimsByBay.get(pa.bay_id) || [];
+          const cancelledForToday = dailyClaims.some(
+            claim => claim.user_id === pa.user_id && claim.status === 'Cancelled'
+          );
+          
+          const bayNumber = baysData.find(b => b.bay_id === pa.bay_id)?.bay_number;
+          
+          if (bayNumber) {
+            if (!cancelledForToday) {
+              allReservations.push({
+                bay_id: pa.bay_id,
+                bay_number: bayNumber,
+                reservation_type: 'Permanent',
+                day_or_date: pa.day_of_week,
+                user_name: userNames[pa.user_id] || 'Unknown',
+                status: 'Active',
+                assignment_id: pa.assignment_id
+              });
+            } else {
+              allReservations.push({
+                bay_id: pa.bay_id,
+                bay_number: bayNumber,
+                reservation_type: 'Permanent',
+                day_or_date: pa.day_of_week,
+                user_name: userNames[pa.user_id] || 'Unknown',
+                status: 'Cancelled for today',
+                assignment_id: pa.assignment_id
+              });
+            }
+          }
         }
       });
       
       // Add daily claims
       dailyData.forEach(dc => {
-        if (dc.status === 'Active') {
-          const bayNumber = baysData.find(b => b.bay_id === dc.bay_id)?.bay_number;
-          
-          if (bayNumber) {
-            allReservations.push({
-              bay_id: dc.bay_id,
-              bay_number: bayNumber,
-              reservation_type: 'Daily',
-              day_or_date: dc.claim_date,
-              user_name: userNames[dc.user_id] || 'Unknown',
-              status: dc.status,
-              claim_id: dc.claim_id
-            });
-          }
+        // Show all daily claims, both active and cancelled
+        const bayNumber = baysData.find(b => b.bay_id === dc.bay_id)?.bay_number;
+        
+        if (bayNumber) {
+          // For daily claims, we want to show both active and cancelled
+          allReservations.push({
+            bay_id: dc.bay_id,
+            bay_number: bayNumber,
+            reservation_type: 'Daily',
+            day_or_date: dc.claim_date,
+            user_name: userNames[dc.user_id] || 'Unknown',
+            status: dc.status,
+            claim_id: dc.claim_id
+          });
         }
       });
       

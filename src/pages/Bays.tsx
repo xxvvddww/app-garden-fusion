@@ -223,7 +223,7 @@ const Bays = () => {
           const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
           const assignedToUser = assignedToUserId === user?.user_id;
           
-          // Check if the permanent assignment has been cancelled for today
+          // Check if the permanent assignment has been cancelled for today by the assigned user
           const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
                               cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
           
@@ -248,7 +248,7 @@ const Bays = () => {
           };
         }
         
-        // Bay is available
+        // Bay is available if it has no active claims or permanent assignments for today
         return {
           ...baseBay,
           status: 'Available' as Bay['status']
