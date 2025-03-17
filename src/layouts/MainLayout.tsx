@@ -26,6 +26,13 @@ interface MainLayoutProps {
   children: React.ReactNode;
 }
 
+// Define a new interface for navigation items
+interface NavigationItem {
+  path: string;
+  label: string;
+  hasNotification?: boolean;
+}
+
 const MainLayout = ({ children }: MainLayoutProps) => {
   const { theme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
@@ -99,7 +106,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     navigate('/login');
   };
 
-  const navigationItems = [
+  // Update type of navigationItems to use the new interface
+  const navigationItems: NavigationItem[] = [
     { path: "/bays", label: "Bays" },
   ];
   
