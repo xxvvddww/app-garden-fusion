@@ -126,7 +126,7 @@ export const BayAssignmentsTable = () => {
                 reservation_type: 'Permanent',
                 day_or_date: pa.day_of_week,
                 user_name: userNames[pa.user_id] || 'Unknown',
-                status: `Temporarily available until ${pa.available_to}`,
+                status: `Temporarily available (${pa.available_from} to ${pa.available_to})`,
                 assignment_id: pa.assignment_id
               });
             } else if (cancelledForToday) {
@@ -287,7 +287,17 @@ export const BayAssignmentsTable = () => {
                   <TableCell>{reservation.reservation_type}</TableCell>
                   <TableCell>{reservation.day_or_date}</TableCell>
                   <TableCell>{reservation.user_name}</TableCell>
-                  <TableCell className={reservation.status === 'Cancelled for today' ? 'text-amber-500' : (reservation.status === 'Active' ? 'text-green-500' : 'text-red-500')}>
+                  <TableCell 
+                    className={
+                      reservation.status === 'Active' 
+                        ? 'text-green-500' 
+                        : reservation.status === 'Cancelled for today'
+                          ? 'text-amber-500'
+                          : reservation.status.includes('Temporarily available')
+                            ? 'text-blue-500'
+                            : 'text-red-500'
+                    }
+                  >
                     {reservation.status}
                   </TableCell>
                 </TableRow>

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -164,6 +163,8 @@ const Bays = () => {
       
       // Map permanent assignments by bay_id, considering availability dates
       const permanentAssignmentsMap = new Map();
+      const temporarilyAvailableBays = new Set();
+      
       permanentAssignmentsData.forEach(assignment => {
         // Check if this assignment is temporarily available based on date range
         const isTemporarilyAvailable = 
@@ -172,11 +173,13 @@ const Bays = () => {
           today >= assignment.available_from && 
           today <= assignment.available_to;
         
-        if (!isTemporarilyAvailable) {
+        if (isTemporarilyAvailable) {
+          // Mark this bay as temporarily available
+          temporarilyAvailableBays.add(assignment.bay_id);
+          console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
+        } else {
           // Only add to map if not temporarily available
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
-        } else {
-          console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
         }
       });
 
@@ -185,6 +188,8 @@ const Bays = () => {
       permanentAssignmentsMap.forEach((userId, bayId) => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
       });
+      
+      console.log('Temporarily available bays:', Array.from(temporarilyAvailableBays));
       
       // Collect all user IDs to fetch their names
       const userIds = new Set<string>();
@@ -227,6 +232,15 @@ const Bays = () => {
             reserved_by_you: claimedByUser,
             reserved_by: claimedByUserId,
             is_permanent: false
+          };
+        }
+        
+        // Check if bay is temporarily available (date range)
+        if (temporarilyAvailableBays.has(bay.bay_id)) {
+          console.log(`Bay ${bay.bay_number} is temporarily available for today`);
+          return {
+            ...baseBay,
+            status: 'Available' as Bay['status']
           };
         }
         

@@ -5,13 +5,11 @@ import { PermanentAssignment, Bay, castToPermanentAssignmentWithBay, DailyClaim,
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import { Calendar } from '@/components/ui/calendar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { format, addDays, isAfter, eachDayOfInterval } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import BayCard from '@/components/BayCard';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import MakeBayAvailableDialog from '@/components/MakeBayAvailableDialog';
+import { format } from 'date-fns';
 
 const MyBay = () => {
   const { user } = useAuth();
@@ -20,10 +18,6 @@ const MyBay = () => {
   const [loading, setLoading] = useState(true);
   const [selectedBay, setSelectedBay] = useState<Bay | null>(null);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
-  const [availabilityOption, setAvailabilityOption] = useState<'today' | 'tomorrow' | 'custom'>('today');
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -90,24 +84,28 @@ const MyBay = () => {
     const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
     
     assignments.forEach(assignment => {
-      if ((assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days') && 
-          !(assignment.available_from && assignment.available_to && 
-            today >= assignment.available_from && today <= assignment.available_to)) {
+      if ((assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days')) {
+        const isTemporarilyAvailable = assignment.available_from && assignment.available_to && 
+                           today >= assignment.available_from && today <= assignment.available_to;
         
-        if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
-          const hasCancelledClaim = dailyClaims.some(
-            claim => claim.bay_id === assignment.bay.bay_id && 
-                    claim.claim_date === today && 
-                    claim.status === 'Cancelled'
-          );
-          
-          if (!hasCancelledClaim) {
-            uniqueBaysMap.set(assignment.bay.bay_id, {
-              ...assignment.bay,
-              status: 'Reserved' as Bay['status'],
-              reserved_by_you: true
-            });
+        if (!isTemporarilyAvailable) {
+          if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
+            const hasCancelledClaim = dailyClaims.some(
+              claim => claim.bay_id === assignment.bay.bay_id && 
+                      claim.claim_date === today && 
+                      claim.status === 'Cancelled'
+            );
+            
+            if (!hasCancelledClaim) {
+              uniqueBaysMap.set(assignment.bay.bay_id, {
+                ...assignment.bay,
+                status: 'Reserved' as Bay['status'],
+                reserved_by_you: true
+              });
+            }
           }
+        } else {
+          console.log(`Bay ${assignment.bay.bay_number} is temporarily available from ${assignment.available_from} to ${assignment.available_to}`);
         }
       }
     });
@@ -131,153 +129,6 @@ const MyBay = () => {
   const handleBayClick = (bay: Bay) => {
     setSelectedBay(bay);
     setAvailabilityDialogOpen(true);
-    setAvailabilityOption('today');
-    setStartDate(undefined);
-    setEndDate(undefined);
-  };
-
-  const makeAvailable = async () => {
-    if (!selectedBay || !user) return;
-    
-    try {
-      setIsSubmitting(true);
-      
-      let fromDate: string | undefined;
-      let toDate: string | undefined;
-      const now = new Date();
-      
-      if (availabilityOption === 'today') {
-        fromDate = format(now, 'yyyy-MM-dd');
-        toDate = fromDate;
-      } else if (availabilityOption === 'tomorrow') {
-        fromDate = format(addDays(now, 1), 'yyyy-MM-dd');
-        toDate = fromDate;
-      } else if (availabilityOption === 'custom') {
-        if (startDate && !endDate) {
-          fromDate = format(startDate, 'yyyy-MM-dd');
-          toDate = fromDate;
-        } else if (startDate && endDate) {
-          fromDate = format(startDate, 'yyyy-MM-dd');
-          toDate = format(endDate, 'yyyy-MM-dd');
-        } else {
-          toast({
-            title: 'Error',
-            description: 'Please select valid date(s)',
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-      
-      if (!fromDate || !toDate) {
-        toast({
-          title: 'Error',
-          description: 'Please select a valid date range',
-          variant: 'destructive',
-        });
-        return;
-      }
-      
-      console.log('Making bay available from', fromDate, 'to', toDate);
-      
-      const { data: userAssignments, error: assignmentsError } = await supabase
-        .from('permanent_assignments')
-        .select('*')
-        .eq('bay_id', selectedBay.bay_id)
-        .eq('user_id', user.user_id);
-      
-      if (assignmentsError) {
-        console.error('Error fetching user assignments:', assignmentsError);
-        throw assignmentsError;
-      }
-      
-      for (const assignment of userAssignments) {
-        const { error: updateError } = await supabase
-          .from('permanent_assignments')
-          .update({
-            available_from: fromDate,
-            available_to: toDate
-          })
-          .eq('assignment_id', assignment.assignment_id);
-        
-        if (updateError) {
-          console.error('Error updating assignment:', updateError);
-          throw updateError;
-        }
-      }
-      
-      const dateRange = startDate && endDate 
-        ? eachDayOfInterval({ start: startDate, end: endDate })
-        : [availabilityOption === 'today' ? now : addDays(now, 1)];
-      
-      for (const date of dateRange) {
-        const formattedDate = format(date, 'yyyy-MM-dd');
-        
-        const { data: existingClaims, error: fetchError } = await supabase
-          .from('daily_claims')
-          .select('*')
-          .eq('bay_id', selectedBay.bay_id)
-          .eq('claim_date', formattedDate)
-          .eq('user_id', user.user_id);
-        
-        if (fetchError) {
-          console.error('Error fetching existing claims:', fetchError);
-          throw fetchError;
-        }
-        
-        if (existingClaims && existingClaims.length > 0) {
-          const { error: updateError } = await supabase
-            .from('daily_claims')
-            .update({ status: 'Cancelled' })
-            .eq('claim_id', existingClaims[0].claim_id)
-            .eq('user_id', user.user_id);
-          
-          if (updateError) {
-            console.error('Error updating claim status:', updateError);
-            throw updateError;
-          }
-        } else {
-          const newClaim = {
-            bay_id: selectedBay.bay_id,
-            user_id: user.user_id,
-            claim_date: formattedDate,
-            status: 'Cancelled',
-            created_by: user.user_id
-          };
-          
-          const { error: insertError } = await supabase
-            .from('daily_claims')
-            .insert(newClaim);
-          
-          if (insertError) {
-            console.error('Error inserting new claim:', insertError);
-            throw insertError;
-          }
-        }
-      }
-      
-      toast({
-        title: 'Success',
-        description: `Your bay has been marked as available ${
-          fromDate === toDate 
-            ? `for ${fromDate === format(now, 'yyyy-MM-dd') ? 'today' : fromDate}` 
-            : `from ${fromDate} to ${toDate}`
-        }`,
-        variant: 'default',
-      });
-      
-      setAvailabilityDialogOpen(false);
-      await Promise.all([fetchUserAssignments(), fetchUserDailyClaims()]);
-    } catch (error) {
-      console.error('Error updating bay status:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update bay status. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   if (loading) {
@@ -321,70 +172,15 @@ const MyBay = () => {
         </div>
       )}
       
-      <Dialog open={availabilityDialogOpen} onOpenChange={setAvailabilityDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Make Bay Available</DialogTitle>
-            <DialogDescription>
-              Choose when to make Bay {selectedBay?.bay_number} available for others to use.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            <ToggleGroup 
-              type="single" 
-              value={availabilityOption} 
-              onValueChange={(value) => {
-                if (value) {
-                  setAvailabilityOption(value as 'today' | 'tomorrow' | 'custom');
-                  setStartDate(undefined);
-                  setEndDate(undefined);
-                }
-              }}
-              className="justify-start"
-            >
-              <ToggleGroupItem value="today">Today</ToggleGroupItem>
-              <ToggleGroupItem value="tomorrow">Tomorrow</ToggleGroupItem>
-              <ToggleGroupItem value="custom">Custom Date(s)</ToggleGroupItem>
-            </ToggleGroup>
-            
-            {availabilityOption === 'custom' && (
-              <div className="border rounded-md p-2">
-                <Calendar
-                  mode="range"
-                  selected={{
-                    from: startDate,
-                    to: endDate,
-                  }}
-                  onSelect={(range) => {
-                    setStartDate(range?.from);
-                    setEndDate(range?.to);
-                  }}
-                  initialFocus
-                  disabled={(date) => date < new Date()}
-                  className="pointer-events-auto"
-                />
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAvailabilityDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={makeAvailable} disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                'Make Available'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <MakeBayAvailableDialog 
+        bay={selectedBay}
+        open={availabilityDialogOpen}
+        onOpenChange={setAvailabilityDialogOpen}
+        onSuccess={() => {
+          fetchUserAssignments();
+          fetchUserDailyClaims();
+        }}
+      />
     </div>
   );
 };
