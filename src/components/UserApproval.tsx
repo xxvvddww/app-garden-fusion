@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, XCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UserApprovalProps {
   onApprovalStatusChange?: () => void;
@@ -18,6 +19,7 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
   const [loading, setLoading] = useState(true);
   const [processingUser, setProcessingUser] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     fetchPendingUsers();
@@ -77,7 +79,7 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         .update({ 
           status: 'Active',
           role: 'User',
-          updated_by: user?.user_id,
+          updated_by: currentUser?.user_id,
           updated_date: new Date().toISOString()
         })
         .eq('user_id', userId);
@@ -136,7 +138,7 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         .from('users')
         .update({ 
           status: 'Rejected',
-          updated_by: user?.user_id,
+          updated_by: currentUser?.user_id,
           updated_date: new Date().toISOString()
         })
         .eq('user_id', userId);
