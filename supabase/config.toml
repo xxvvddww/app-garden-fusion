@@ -40,5 +40,5 @@ refresh_token_reuse_interval = 10
 enable_signup = true
 
 [functions]
-[functions.serve]
-enabled = true
+[functions.create-user]
+verify_jwt = false
