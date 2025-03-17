@@ -108,14 +108,16 @@ serve(async (req) => {
     // When an admin creates a user, set the status to Active directly (no need for approval)
     const { error: updateError } = await supabaseClient
       .from("users")
-      .update({
+      .insert({
+        user_id: authData.user.id,
+        email,
+        name,
         mobile_number,
         tsa_id,
         role,
         status: 'Active', // Users created by admin are auto-approved
         created_by: user.id,
-      })
-      .eq("user_id", authData.user.id);
+      });
 
     if (updateError) {
       console.error("Error updating user details:", updateError);
