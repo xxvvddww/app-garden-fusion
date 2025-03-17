@@ -68,6 +68,7 @@ export const BayAssignmentsTable = () => {
       if (dailyError) throw dailyError;
       
       console.log('Fetched daily claims for table:', dailyData);
+      console.log('Fetched permanent assignments for table:', permanentData);
       
       // Fetch user names
       const userIds = new Set<string>();
@@ -120,6 +121,7 @@ export const BayAssignmentsTable = () => {
           
           if (bayNumber) {
             if (isTemporarilyAvailable) {
+              console.log(`Table: Bay ${bayNumber} is temporarily available from ${pa.available_from} to ${pa.available_to}`);
               allReservations.push({
                 bay_id: pa.bay_id,
                 bay_number: bayNumber,

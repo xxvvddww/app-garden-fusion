@@ -48,7 +48,7 @@ const Bays = () => {
   useEffect(() => {
     fetchBays();
 
-    // Set up realtime subscriptions to relevant tables
+    // Setup subscription for real-time updates
     const dailyClaimsChannel = supabase
       .channel('daily-claims-changes')
       .on(
@@ -177,9 +177,26 @@ const Bays = () => {
           // Mark this bay as temporarily available
           temporarilyAvailableBays.add(assignment.bay_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
-        } else {
-          // Only add to map if not temporarily available
+        } else if (!temporarilyAvailableBays.has(assignment.bay_id)) {
+          // Only add to permanent assignments map if not already marked as temporarily available
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+        }
+      });
+      
+      // Make a second pass to ensure temporary availability takes precedence
+      permanentAssignmentsData.forEach(assignment => {
+        const isTemporarilyAvailable = 
+          assignment.available_from && 
+          assignment.available_to && 
+          today >= assignment.available_from && 
+          today <= assignment.available_to;
+        
+        if (isTemporarilyAvailable) {
+          // If a bay is temporarily available, remove it from the permanent assignments map
+          if (permanentAssignmentsMap.has(assignment.bay_id)) {
+            console.log(`Removing bay ${assignment.bay_id} from permanent assignments because it's temporarily available`);
+            permanentAssignmentsMap.delete(assignment.bay_id);
+          }
         }
       });
 

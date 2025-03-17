@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -106,6 +107,7 @@ const MyBay = () => {
           }
         } else {
           console.log(`Bay ${assignment.bay.bay_number} is temporarily available from ${assignment.available_from} to ${assignment.available_to}`);
+          // Don't show temporarily available bays in MyBay
         }
       }
     });
