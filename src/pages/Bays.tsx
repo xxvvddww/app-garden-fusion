@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -210,12 +209,11 @@ const Bays = () => {
           const assignedToUser = assignedToUserId === user?.user_id;
           
           // Check if the permanent assignment has been cancelled for today
-          // This is the key fix: properly check if this specific user has cancelled their permanent assignment
-          const hasCancelled = cancelledDailyClaimsMap.has(bay.bay_id) && 
+          const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
                               cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
           
-          // If the assignment is cancelled, mark bay as available
-          if (hasCancelled) {
+          // If this specific user's permanent assignment is cancelled for today, mark bay as available
+          if (hasCancelledClaim) {
             return {
               ...baseBay,
               status: 'Available' as Bay['status']
