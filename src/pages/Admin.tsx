@@ -5,7 +5,7 @@ import { User, Bay, castToUser, castToBay, DailyClaim, PermanentAssignment, cast
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -82,12 +82,12 @@ const Admin = () => {
   const [removedDays, setRemovedDays] = useState<string[]>([]);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [activeTab, setActiveTab] = useState(pendingUsersCount > 0 ? "approvals" : "management");
-  const [dailyClaims, setDailyClaims] = useState<ClaimWithDetails[]>([]);
-  const [permanentAssignments, setPermanentAssignments] = useState<AssignmentWithDetails[]>([]);
-  const [loadingClaims, setLoadingClaims] = useState(false);
-  const [loadingAssignments, setLoadingAssignments] = useState(false);
-  const [revokingClaimId, setRevokingClaimId] = useState<string | null>(null);
-  const [revokingAssignmentId, setRevokingAssignmentId] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setLoading(false);
+    fetchPendingUsersCount();
+  }, []);
 
   const fetchPendingUsersCount = useCallback(async () => {
     try {
