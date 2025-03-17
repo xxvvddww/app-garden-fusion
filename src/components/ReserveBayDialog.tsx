@@ -155,17 +155,12 @@ const ReserveBayDialog = ({
     
     try {
       setLoading(true);
+      console.log("Cancelling reservation for bay:", bay.bay_id, "User:", user.user_id, "Today:", today);
       
-      const { data: assignmentData, error: assignmentError } = await supabase
-        .from('permanent_assignments')
-        .select('*')
-        .eq('bay_id', bay.bay_id)
-        .eq('user_id', user.user_id)
-        .or(`day_of_week.eq.${currentDayOfWeek},day_of_week.eq.All Days`);
+      if (bay.is_permanent) {
+        console.log("Cancelling permanent reservation for today");
         
-      if (assignmentError) throw assignmentError;
-      
-      if (assignmentData && assignmentData.length > 0) {
+        // For permanent assignments, create a cancellation record for today
         const { error } = await supabase
           .from('daily_claims')
           .insert({
@@ -176,27 +171,53 @@ const ReserveBayDialog = ({
             created_by: user.user_id
           });
           
-        if (error) throw error;
+        if (error) {
+          console.error("Error creating cancellation record:", error);
+          throw error;
+        }
         
         toast({
           title: 'Reservation Cancelled',
-          description: `You have cancelled your reservation for Bay ${bay.bay_number} today`,
+          description: `You have made Bay ${bay.bay_number} available for today`,
         });
       } else {
-        const { error } = await supabase
+        console.log("Cancelling daily claim");
+        
+        // For daily claims, update the existing claim to cancelled
+        const { data: claims, error: fetchError } = await supabase
           .from('daily_claims')
-          .update({ status: 'Cancelled' })
+          .select('claim_id')
           .eq('bay_id', bay.bay_id)
           .eq('user_id', user.user_id)
           .eq('claim_date', today)
           .eq('status', 'Active');
           
-        if (error) throw error;
+        if (fetchError) {
+          console.error("Error fetching claims to cancel:", fetchError);
+          throw fetchError;
+        }
         
-        toast({
-          title: 'Reservation Cancelled',
-          description: `You have cancelled your reservation for Bay ${bay.bay_number}`,
-        });
+        console.log("Found claims to cancel:", claims);
+        
+        if (claims && claims.length > 0) {
+          const { error: updateError } = await supabase
+            .from('daily_claims')
+            .update({ status: 'Cancelled' })
+            .eq('claim_id', claims[0].claim_id);
+            
+          if (updateError) {
+            console.error("Error updating claim status:", updateError);
+            throw updateError;
+          }
+          
+          toast({
+            title: 'Reservation Cancelled',
+            description: `You have cancelled your reservation for Bay ${bay.bay_number}`,
+          });
+        } else {
+          console.error("No active claim found to cancel");
+          throw new Error("No active claim found to cancel");
+        }
       }
       
       onOpenChange(false);
