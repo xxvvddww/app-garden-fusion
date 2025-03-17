@@ -14,6 +14,7 @@ const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  mobileNumber: z.string().min(8, 'Please enter a valid mobile number').optional(),
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -29,6 +30,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       name: '',
       email: '',
       password: '',
+      mobileNumber: '',
     },
   });
 
@@ -42,6 +44,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         options: {
           data: {
             name: values.name,
+            mobile_number: values.mobileNumber,
           },
         },
       });
@@ -103,6 +106,25 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
                 <Input
                   placeholder="your.email@example.com"
                   autoComplete="email"
+                  disabled={isSubmitting}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="mobileNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Mobile Number</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Your mobile number"
+                  autoComplete="tel"
                   disabled={isSubmitting}
                   {...field}
                 />

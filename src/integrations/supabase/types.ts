@@ -39,7 +39,7 @@ export type Database = {
       bays: {
         Row: {
           bay_id: string
-          bay_number: string
+          bay_number: number
           created_by: string | null
           created_date: string | null
           location: string
@@ -50,7 +50,7 @@ export type Database = {
         }
         Insert: {
           bay_id?: string
-          bay_number: string
+          bay_number: number
           created_by?: string | null
           created_date?: string | null
           location: string
@@ -61,7 +61,7 @@ export type Database = {
         }
         Update: {
           bay_id?: string
-          bay_number?: string
+          bay_number?: number
           created_by?: string | null
           created_date?: string | null
           location?: string
