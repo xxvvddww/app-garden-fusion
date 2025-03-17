@@ -46,7 +46,9 @@ export const BayAssignmentsTable = () => {
           assignment_id,
           bay_id,
           user_id,
-          day_of_week
+          day_of_week,
+          available_from,
+          available_to
         `);
         
       if (permanentError) throw permanentError;
@@ -103,6 +105,11 @@ export const BayAssignmentsTable = () => {
       permanentData.forEach(pa => {
         // Only include permanent assignments for today or "All Days"
         if (pa.day_of_week === currentDayOfWeek || pa.day_of_week === 'All Days') {
+          // Check if temporarily available for today based on date range
+          const isTemporarilyAvailable = 
+            pa.available_from && pa.available_to && 
+            today >= pa.available_from && today <= pa.available_to;
+            
           // Check if there's a cancellation for today
           const dailyClaims = dailyClaimsByBay.get(pa.bay_id) || [];
           const cancelledForToday = dailyClaims.some(
@@ -112,14 +119,24 @@ export const BayAssignmentsTable = () => {
           const bayNumber = baysData.find(b => b.bay_id === pa.bay_id)?.bay_number;
           
           if (bayNumber) {
-            if (!cancelledForToday) {
+            if (isTemporarilyAvailable) {
               allReservations.push({
                 bay_id: pa.bay_id,
                 bay_number: bayNumber,
                 reservation_type: 'Permanent',
                 day_or_date: pa.day_of_week,
                 user_name: userNames[pa.user_id] || 'Unknown',
-                status: 'Active',
+                status: `Temporarily available until ${pa.available_to}`,
+                assignment_id: pa.assignment_id
+              });
+            } else if (cancelledForToday) {
+              allReservations.push({
+                bay_id: pa.bay_id,
+                bay_number: bayNumber,
+                reservation_type: 'Permanent',
+                day_or_date: pa.day_of_week,
+                user_name: userNames[pa.user_id] || 'Unknown',
+                status: 'Cancelled for today',
                 assignment_id: pa.assignment_id
               });
             } else {
@@ -129,7 +146,7 @@ export const BayAssignmentsTable = () => {
                 reservation_type: 'Permanent',
                 day_or_date: pa.day_of_week,
                 user_name: userNames[pa.user_id] || 'Unknown',
-                status: 'Cancelled for today',
+                status: 'Active',
                 assignment_id: pa.assignment_id
               });
             }

@@ -113,6 +113,8 @@ export type Database = {
       permanent_assignments: {
         Row: {
           assignment_id: string
+          available_from: string | null
+          available_to: string | null
           bay_id: string
           created_by: string | null
           created_date: string | null
@@ -121,6 +123,8 @@ export type Database = {
         }
         Insert: {
           assignment_id?: string
+          available_from?: string | null
+          available_to?: string | null
           bay_id: string
           created_by?: string | null
           created_date?: string | null
@@ -129,6 +133,8 @@ export type Database = {
         }
         Update: {
           assignment_id?: string
+          available_from?: string | null
+          available_to?: string | null
           bay_id?: string
           created_by?: string | null
           created_date?: string | null

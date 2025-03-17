@@ -35,6 +35,8 @@ export interface PermanentAssignment {
   day_of_week: string;
   created_date?: string;
   created_by?: string;
+  available_from?: string; // New field: start date for temporary availability
+  available_to?: string;   // New field: end date for temporary availability
 }
 
 export interface DailyClaim {

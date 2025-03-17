@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -85,25 +84,23 @@ const MyBay = () => {
     }
   };
 
-  // Get unique bays from assignments to avoid duplicates
   const getMyBays = () => {
     const uniqueBaysMap = new Map<string, Bay>();
     const today = format(new Date(), 'yyyy-MM-dd');
     const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
     
-    // Add permanent assignment bays for today's day of the week
     assignments.forEach(assignment => {
-      // Only include assignments for today or "All Days"
-      if (assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days') {
+      if ((assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days') && 
+          !(assignment.available_from && assignment.available_to && 
+            today >= assignment.available_from && today <= assignment.available_to)) {
+        
         if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
-          // Check if there's a cancelled claim for today
           const hasCancelledClaim = dailyClaims.some(
             claim => claim.bay_id === assignment.bay.bay_id && 
                     claim.claim_date === today && 
                     claim.status === 'Cancelled'
           );
           
-          // Only add to map if not cancelled for today
           if (!hasCancelledClaim) {
             uniqueBaysMap.set(assignment.bay.bay_id, {
               ...assignment.bay,
@@ -115,7 +112,6 @@ const MyBay = () => {
       }
     });
     
-    // Add daily claim bays
     dailyClaims.forEach(claim => {
       if (claim.status === 'Active') {
         const matchingBay = assignments.find(a => a.bay.bay_id === claim.bay_id)?.bay;
@@ -146,23 +142,23 @@ const MyBay = () => {
     try {
       setIsSubmitting(true);
       
-      let dates: string[] = [];
+      let fromDate: string | undefined;
+      let toDate: string | undefined;
       const now = new Date();
       
-      // Determine which dates to make available based on the selected option
       if (availabilityOption === 'today') {
-        dates = [format(now, 'yyyy-MM-dd')];
+        fromDate = format(now, 'yyyy-MM-dd');
+        toDate = fromDate;
       } else if (availabilityOption === 'tomorrow') {
-        dates = [format(addDays(now, 1), 'yyyy-MM-dd')];
+        fromDate = format(addDays(now, 1), 'yyyy-MM-dd');
+        toDate = fromDate;
       } else if (availabilityOption === 'custom') {
         if (startDate && !endDate) {
-          // Single date selected
-          dates = [format(startDate, 'yyyy-MM-dd')];
+          fromDate = format(startDate, 'yyyy-MM-dd');
+          toDate = fromDate;
         } else if (startDate && endDate) {
-          // Date range selected
-          // Get all dates in the range
-          const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
-          dates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
+          fromDate = format(startDate, 'yyyy-MM-dd');
+          toDate = format(endDate, 'yyyy-MM-dd');
         } else {
           toast({
             title: 'Error',
@@ -173,7 +169,7 @@ const MyBay = () => {
         }
       }
       
-      if (dates.length === 0) {
+      if (!fromDate || !toDate) {
         toast({
           title: 'Error',
           description: 'Please select a valid date range',
@@ -182,18 +178,46 @@ const MyBay = () => {
         return;
       }
       
-      console.log('Making bay available for dates:', dates);
+      console.log('Making bay available from', fromDate, 'to', toDate);
       
-      // Process each date in the selected range
-      for (const date of dates) {
-        console.log(`Processing date: ${date} for bay ${selectedBay.bay_id}`);
+      const { data: userAssignments, error: assignmentsError } = await supabase
+        .from('permanent_assignments')
+        .select('*')
+        .eq('bay_id', selectedBay.bay_id)
+        .eq('user_id', user.user_id);
+      
+      if (assignmentsError) {
+        console.error('Error fetching user assignments:', assignmentsError);
+        throw assignmentsError;
+      }
+      
+      for (const assignment of userAssignments) {
+        const { error: updateError } = await supabase
+          .from('permanent_assignments')
+          .update({
+            available_from: fromDate,
+            available_to: toDate
+          })
+          .eq('assignment_id', assignment.assignment_id);
         
-        // First check if there's an existing claim for this date
+        if (updateError) {
+          console.error('Error updating assignment:', updateError);
+          throw updateError;
+        }
+      }
+      
+      const dateRange = startDate && endDate 
+        ? eachDayOfInterval({ start: startDate, end: endDate })
+        : [availabilityOption === 'today' ? now : addDays(now, 1)];
+      
+      for (const date of dateRange) {
+        const formattedDate = format(date, 'yyyy-MM-dd');
+        
         const { data: existingClaims, error: fetchError } = await supabase
           .from('daily_claims')
           .select('*')
           .eq('bay_id', selectedBay.bay_id)
-          .eq('claim_date', date)
+          .eq('claim_date', formattedDate)
           .eq('user_id', user.user_id);
         
         if (fetchError) {
@@ -201,35 +225,25 @@ const MyBay = () => {
           throw fetchError;
         }
         
-        console.log('Existing claims found:', existingClaims);
-        
-        // If a claim exists, update its status to 'Cancelled'
         if (existingClaims && existingClaims.length > 0) {
-          console.log(`Updating existing claim ${existingClaims[0].claim_id} to Cancelled`);
-          
           const { error: updateError } = await supabase
             .from('daily_claims')
             .update({ status: 'Cancelled' })
             .eq('claim_id', existingClaims[0].claim_id)
-            .eq('user_id', user.user_id); // Ensure we're only updating the user's own claims
+            .eq('user_id', user.user_id);
           
           if (updateError) {
             console.error('Error updating claim status:', updateError);
             throw updateError;
           }
         } else {
-          // If no claim exists, create a new one with 'Cancelled' status
-          console.log('No existing claim found, creating new cancelled claim');
-          
           const newClaim = {
             bay_id: selectedBay.bay_id,
             user_id: user.user_id,
-            claim_date: date,
+            claim_date: formattedDate,
             status: 'Cancelled',
             created_by: user.user_id
           };
-          
-          console.log('Inserting new claim:', newClaim);
           
           const { error: insertError } = await supabase
             .from('daily_claims')
@@ -244,12 +258,15 @@ const MyBay = () => {
       
       toast({
         title: 'Success',
-        description: `Your bay has been marked as available for the selected ${dates.length > 1 ? 'dates' : 'date'}`,
+        description: `Your bay has been marked as available ${
+          fromDate === toDate 
+            ? `for ${fromDate === format(now, 'yyyy-MM-dd') ? 'today' : fromDate}` 
+            : `from ${fromDate} to ${toDate}`
+        }`,
         variant: 'default',
       });
       
       setAvailabilityDialogOpen(false);
-      // Refresh data to update UI
       await Promise.all([fetchUserAssignments(), fetchUserDailyClaims()]);
     } catch (error) {
       console.error('Error updating bay status:', error);
@@ -320,7 +337,6 @@ const MyBay = () => {
               onValueChange={(value) => {
                 if (value) {
                   setAvailabilityOption(value as 'today' | 'tomorrow' | 'custom');
-                  // Reset date selections when changing options
                   setStartDate(undefined);
                   setEndDate(undefined);
                 }

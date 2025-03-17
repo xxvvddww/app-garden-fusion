@@ -129,7 +129,7 @@ const Bays = () => {
       // 3. Get permanent assignments for today's day of week
       const { data: permanentAssignmentsData, error: assignmentsError } = await supabase
         .from('permanent_assignments')
-        .select('bay_id, user_id, day_of_week')
+        .select('bay_id, user_id, day_of_week, available_from, available_to')
         .or(`day_of_week.eq.${currentDayOfWeek},day_of_week.eq.All Days`);
         
       if (assignmentsError) throw assignmentsError;
@@ -162,14 +162,26 @@ const Bays = () => {
         console.log(`Bay ${bayId}:`, Array.from(userSet));
       });
       
-      // Map permanent assignments by bay_id
+      // Map permanent assignments by bay_id, considering availability dates
       const permanentAssignmentsMap = new Map();
       permanentAssignmentsData.forEach(assignment => {
-        permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+        // Check if this assignment is temporarily available based on date range
+        const isTemporarilyAvailable = 
+          assignment.available_from && 
+          assignment.available_to && 
+          today >= assignment.available_from && 
+          today <= assignment.available_to;
+        
+        if (!isTemporarilyAvailable) {
+          // Only add to map if not temporarily available
+          permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+        } else {
+          console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
+        }
       });
 
       // Debug log permanent assignments
-      console.log('Permanent Assignments Map:');
+      console.log('Permanent Assignments Map (excluding temporary availability):');
       permanentAssignmentsMap.forEach((userId, bayId) => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
       });

@@ -37,23 +37,26 @@ const MakeBayAvailableDialog = ({
     try {
       setIsSubmitting(true);
       
-      let dates: string[] = [];
+      let fromDate: string;
+      let toDate: string;
       const now = new Date();
       
-      // Determine which dates to make available based on the selected option
+      // Determine the date range based on the selected option
       if (availabilityOption === 'today') {
-        dates = [format(now, 'yyyy-MM-dd')];
+        fromDate = format(now, 'yyyy-MM-dd');
+        toDate = fromDate;
       } else if (availabilityOption === 'tomorrow') {
-        dates = [format(addDays(now, 1), 'yyyy-MM-dd')];
+        fromDate = format(addDays(now, 1), 'yyyy-MM-dd');
+        toDate = fromDate;
       } else if (availabilityOption === 'custom') {
         if (startDate && !endDate) {
           // Single date selected
-          dates = [format(startDate, 'yyyy-MM-dd')];
+          fromDate = format(startDate, 'yyyy-MM-dd');
+          toDate = fromDate;
         } else if (startDate && endDate) {
           // Date range selected
-          // Get all dates in the range
-          const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
-          dates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
+          fromDate = format(startDate, 'yyyy-MM-dd');
+          toDate = format(endDate, 'yyyy-MM-dd');
         } else {
           toast({
             title: 'Error',
@@ -62,165 +65,113 @@ const MakeBayAvailableDialog = ({
           });
           return;
         }
-      }
-      
-      if (dates.length === 0) {
+      } else {
         toast({
           title: 'Error',
-          description: 'Please select a valid date range',
+          description: 'Please select a valid date option',
           variant: 'destructive',
         });
         return;
       }
       
-      console.log('Making bay available for dates:', dates);
+      console.log(`Making bay available from ${fromDate} to ${toDate}`);
       
-      // Process each date in the selected range
-      for (const date of dates) {
-        console.log(`Processing date: ${date} for bay ${bay.bay_id}`);
+      // First, get all permanent assignments for this bay by this user
+      const { data: permanentAssignments, error: fetchError } = await supabase
+        .from('permanent_assignments')
+        .select('*')
+        .eq('bay_id', bay.bay_id)
+        .eq('user_id', user.user_id);
+      
+      if (fetchError) {
+        console.error('Error fetching permanent assignments:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('Permanent assignments found:', permanentAssignments);
+      
+      // Update each permanent assignment with the availability date range
+      for (const assignment of permanentAssignments) {
+        console.log(`Updating assignment ${assignment.assignment_id} with availability dates`);
         
-        // Get the day of week for this date
-        const parsedDate = parse(date, 'yyyy-MM-dd', new Date());
-        const dayOfWeek = format(parsedDate, 'EEEE'); // 'Monday', 'Tuesday', etc.
-        
-        console.log(`Day of week for ${date}: ${dayOfWeek}`);
-        
-        // Check if there's a permanent assignment for this bay on this day of week
-        const { data: permanentAssignments, error: assignmentError } = await supabase
+        const { error: updateError } = await supabase
           .from('permanent_assignments')
-          .select('*')
-          .eq('bay_id', bay.bay_id)
-          .eq('user_id', user.user_id)
-          .or(`day_of_week.eq.${dayOfWeek},day_of_week.eq.All Days`);
+          .update({
+            available_from: fromDate,
+            available_to: toDate
+          })
+          .eq('assignment_id', assignment.assignment_id);
         
-        if (assignmentError) {
-          console.error('Error fetching permanent assignments:', assignmentError);
-          throw assignmentError;
+        if (updateError) {
+          console.error('Error updating permanent assignment:', updateError);
+          throw updateError;
         }
+      }
+      
+      // For the selected dates, we also need to create cancelled daily claims
+      // to ensure they show up correctly in the UI immediately
+      const dateRange = startDate && endDate 
+        ? eachDayOfInterval({ start: startDate, end: endDate })
+        : [availabilityOption === 'today' ? now : addDays(now, 1)];
+      
+      for (const date of dateRange) {
+        const formattedDate = format(date, 'yyyy-MM-dd');
+        console.log(`Creating cancelled claim for ${formattedDate}`);
         
-        console.log('Permanent assignments found:', permanentAssignments);
-        
-        // If there's a permanent assignment for this day, delete it
-        if (permanentAssignments && permanentAssignments.length > 0) {
-          for (const assignment of permanentAssignments) {
-            console.log(`Deleting permanent assignment ${assignment.assignment_id} for ${assignment.day_of_week}`);
-            
-            // If it's "All Days" assignment and we're only making a specific day available,
-            // we need to create new assignments for all other days
-            if (assignment.day_of_week === 'All Days' && dayOfWeek !== 'All Days') {
-              console.log('This is an "All Days" assignment, creating new assignments for other days');
-              
-              // First delete the "All Days" assignment
-              const { error: deleteError } = await supabase
-                .from('permanent_assignments')
-                .delete()
-                .eq('assignment_id', assignment.assignment_id);
-              
-              if (deleteError) {
-                console.error('Error deleting permanent assignment:', deleteError);
-                throw deleteError;
-              }
-              
-              // Then create new assignments for each day except the current day
-              const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-              for (const day of allDays) {
-                if (day !== dayOfWeek) {
-                  console.log(`Creating new assignment for ${day}`);
-                  
-                  const { error: insertError } = await supabase
-                    .from('permanent_assignments')
-                    .insert({
-                      bay_id: bay.bay_id,
-                      user_id: user.user_id,
-                      day_of_week: day,
-                      created_by: user.user_id
-                    });
-                  
-                  if (insertError) {
-                    console.error(`Error creating assignment for ${day}:`, insertError);
-                    throw insertError;
-                  }
-                }
-              }
-            } else {
-              // For regular day-specific assignments, just delete them
-              const { error: deleteError } = await supabase
-                .from('permanent_assignments')
-                .delete()
-                .eq('assignment_id', assignment.assignment_id);
-              
-              if (deleteError) {
-                console.error('Error deleting permanent assignment:', deleteError);
-                throw deleteError;
-              }
-            }
-          }
-        }
-        
-        // First check if there's an existing claim for this date
-        const { data: existingClaims, error: fetchError } = await supabase
+        // Check if a claim already exists for this date
+        const { data: existingClaims, error: claimsError } = await supabase
           .from('daily_claims')
           .select('*')
           .eq('bay_id', bay.bay_id)
-          .eq('claim_date', date)
-          .eq('user_id', user.user_id);
+          .eq('user_id', user.user_id)
+          .eq('claim_date', formattedDate);
         
-        if (fetchError) {
-          console.error('Error fetching existing claims:', fetchError);
-          throw fetchError;
+        if (claimsError) {
+          console.error('Error checking existing claims:', claimsError);
+          throw claimsError;
         }
         
-        console.log('Existing claims found:', existingClaims);
-        
-        // If a claim exists, update its status to 'Cancelled'
+        // If a claim exists, update it to cancelled, otherwise create a new cancelled claim
         if (existingClaims && existingClaims.length > 0) {
-          console.log(`Updating existing claim ${existingClaims[0].claim_id} to Cancelled`);
-          
           const { error: updateError } = await supabase
             .from('daily_claims')
             .update({ status: 'Cancelled' })
-            .eq('claim_id', existingClaims[0].claim_id)
-            .eq('user_id', user.user_id); // Ensure we're only updating the user's own claims
+            .eq('claim_id', existingClaims[0].claim_id);
           
           if (updateError) {
-            console.error('Error updating claim status:', updateError);
+            console.error('Error updating claim:', updateError);
             throw updateError;
           }
         } else {
-          // If no claim exists, create a new one with 'Cancelled' status
-          // This is crucial for permanent assignments - we need to create a cancellation record
-          console.log('No existing claim found, creating new cancelled claim');
-          
-          const newClaim = {
-            bay_id: bay.bay_id,
-            user_id: user.user_id,
-            claim_date: date,
-            status: 'Cancelled',
-            created_by: user.user_id
-          };
-          
-          console.log('Inserting new claim:', newClaim);
-          
           const { error: insertError } = await supabase
             .from('daily_claims')
-            .insert(newClaim);
+            .insert({
+              bay_id: bay.bay_id,
+              user_id: user.user_id,
+              claim_date: formattedDate,
+              status: 'Cancelled',
+              created_by: user.user_id
+            });
           
           if (insertError) {
-            console.error('Error inserting new claim:', insertError);
+            console.error('Error inserting claim:', insertError);
             throw insertError;
           }
         }
       }
       
-      // Force a refresh of the data after cancellation
+      // Force a refresh of the data after making available
       if (onSuccess) {
-        // Ensure callback is executed
         onSuccess();
       }
       
       toast({
         title: 'Success',
-        description: `Your bay has been marked as available for the selected ${dates.length > 1 ? 'dates' : 'date'}`,
+        description: `Your bay has been marked as available ${
+          fromDate === toDate 
+            ? `for ${fromDate === format(now, 'yyyy-MM-dd') ? 'today' : fromDate}` 
+            : `from ${fromDate} to ${toDate}`
+        }`,
         variant: 'default',
       });
       
