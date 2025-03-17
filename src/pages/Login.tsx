@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import SignupForm from '@/components/SignupForm';
 
 const loginSchema = z.object({
@@ -28,6 +28,7 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [redirectAttempts, setRedirectAttempts] = useState(0);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // Get the intended destination from location state, or default to '/'
   const from = location.state?.from?.pathname || '/';
@@ -42,7 +43,7 @@ const Login = () => {
 
   // Effect for redirection logic
   useEffect(() => {
-    const redirectIfAuthenticated = () => {
+    const redirectIfAuthenticated = async () => {
       console.log("Checking auth state for redirect:", { 
         user, 
         loading, 
@@ -54,12 +55,12 @@ const Login = () => {
         if (user && session) {
           console.log("User is authenticated, redirecting to:", from);
           navigate(from, { replace: true });
-        } else if (redirectAttempts < 5 && session && !user) {
+        } else if (redirectAttempts < 10 && session && !user) {
           // If we have a session but no user yet, wait a bit and retry
           console.log("Session exists but no user yet, waiting...");
           setTimeout(() => {
             setRedirectAttempts(prev => prev + 1);
-          }, 500);
+          }, 1500); // Increased wait time to allow more time for profile fetching
         }
       }
     };
@@ -67,16 +68,24 @@ const Login = () => {
     redirectIfAuthenticated();
   }, [user, loading, session, navigate, from, redirectAttempts]);
 
+  // Clear login error when switching auth modes
+  useEffect(() => {
+    setLoginError(null);
+  }, [authMode]);
+
   const onSubmit = async (values: LoginFormValues) => {
     if (isSubmitting) return;
     
     setIsSubmitting(true);
+    setLoginError(null);
+    
     try {
       console.log("Attempting to sign in with:", values.email);
       const { error } = await signIn(values.email, values.password);
       
       if (error) {
         console.error("Sign in failed:", error);
+        setLoginError(error);
         toast({
           title: 'Sign in failed',
           description: error,
@@ -92,6 +101,7 @@ const Login = () => {
       }
     } catch (err) {
       console.error("Unexpected error during sign in:", err);
+      setLoginError('An unexpected error occurred. Please try again.');
       toast({
         title: 'Error',
         description: 'An unexpected error occurred. Please try again.',
@@ -110,26 +120,6 @@ const Login = () => {
   if (!loading && user && session) {
     console.log("User is already authenticated, redirecting immediately");
     return <Navigate to={from} replace />;
-  }
-
-  // Show loading state while authentication is being checked
-  if (loading) {
-    console.log("Auth is loading, showing loading state");
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-2 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="p-3 bg-primary/10 rounded-full">
-                <LucideCarFront className="h-8 w-8 text-primary animate-pulse" />
-              </div>
-            </div>
-            <CardTitle className="text-xl">Loading...</CardTitle>
-            <CardDescription>Please wait while we authenticate you</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
   }
 
   return (
@@ -151,6 +141,22 @@ const Login = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loginError && (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4 text-sm">
+              {loginError}
+            </div>
+          )}
+          
+          {loading && (
+            <div className="bg-primary/10 text-primary px-4 py-3 rounded-md mb-4 text-sm flex items-center justify-center">
+              <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Authenticating...
+            </div>
+          )}
+          
           {authMode === 'login' ? (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -164,7 +170,7 @@ const Login = () => {
                         <Input
                           placeholder="your.email@example.com"
                           autoComplete="email"
-                          disabled={isSubmitting}
+                          disabled={isSubmitting || loading}
                           {...field}
                         />
                       </FormControl>
@@ -183,7 +189,7 @@ const Login = () => {
                           type="password"
                           placeholder="••••••••"
                           autoComplete="current-password"
-                          disabled={isSubmitting}
+                          disabled={isSubmitting || loading}
                           {...field}
                         />
                       </FormControl>
@@ -191,11 +197,11 @@ const Login = () => {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                <Button type="submit" className="w-full" disabled={isSubmitting || loading}>
                   {isSubmitting ? 'Signing in...' : 'Sign in'}
                 </Button>
                 <div className="text-center">
-                  <Button type="button" variant="link" onClick={toggleAuthMode}>
+                  <Button type="button" variant="link" onClick={toggleAuthMode} disabled={isSubmitting || loading}>
                     Don't have an account? Sign up
                   </Button>
                 </div>

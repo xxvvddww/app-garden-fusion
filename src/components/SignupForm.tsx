@@ -46,6 +46,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
     setIsSubmitting(true);
     
     try {
+      console.log("Starting signup process with values:", values);
+      
       // First, create the auth user with Supabase
       const { data, error } = await supabase.auth.signUp({
         email: values.email,
@@ -70,39 +72,45 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
       }
 
       if (data.user) {
-        // Explicitly update the users table with additional fields and set status to Pending
-        const { error: updateError } = await supabase
+        console.log("Auth user created successfully:", data.user.id);
+        console.log("User metadata:", data.user.user_metadata);
+        
+        // First delay slightly to ensure auth is completed
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Explicitly insert a new record to ensure all fields are saved correctly
+        // This bypasses any trigger that might be setting incorrect values
+        const { error: insertError, data: insertData } = await supabase
           .from('users')
-          .update({
+          .insert({
+            user_id: data.user.id,
+            email: values.email,
+            name: values.name,
             mobile_number: values.mobileNumber,
             tsa_id: values.tsaId,
             status: 'Pending',
-            name: values.name,
             role: 'User'
-          })
-          .eq('user_id', data.user.id);
+          });
 
-        if (updateError) {
-          console.error('Error updating user details:', updateError);
+        console.log("Insert response:", { error: insertError, data: insertData });
+
+        if (insertError) {
+          console.error('Error inserting user details:', insertError);
           
-          // Make a second attempt to create the user record if it doesn't exist
-          const { error: insertError } = await supabase
+          // Even if we can't insert the record directly, the trigger might have created it
+          // Check if a user record was created anyway
+          const { data: userCheck } = await supabase
             .from('users')
-            .insert({
-              user_id: data.user.id,
-              email: values.email,
-              name: values.name,
-              mobile_number: values.mobileNumber,
-              tsa_id: values.tsaId,
-              status: 'Pending',
-              role: 'User'
-            });
+            .select('*')
+            .eq('user_id', data.user.id)
+            .single();
             
-          if (insertError) {
-            console.error('Error inserting user details:', insertError);
+          console.log("User check result:", userCheck);
+            
+          if (!userCheck) {
             toast({
               title: 'Signup partially completed',
-              description: 'Your account was created but some details could not be saved.',
+              description: 'Your account was created but some details could not be saved. Please contact support.',
               variant: 'destructive',
             });
           } else {
@@ -112,6 +120,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             });
           }
         } else {
+          console.log("User data successfully inserted into users table");
           toast({
             title: 'Account created',
             description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
@@ -164,7 +173,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="your.email@example.com"
+                  placeholder="your.email@tsagroup.com.au"
                   autoComplete="email"
                   disabled={isSubmitting}
                   {...field}
@@ -228,9 +237,9 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
               <FormLabel>TSA ID</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="9-digit TSA ID"
+                  placeholder="8-digit TSA ID"
                   autoComplete="off"
-                  maxLength={9}
+                  maxLength={8}
                   disabled={isSubmitting}
                   {...field}
                 />
