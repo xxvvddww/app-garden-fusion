@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button'; // Add this import
 import { supabase, refreshSession } from '@/integrations/supabase/client';
 
 interface ProtectedRouteProps {
