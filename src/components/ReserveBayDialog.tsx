@@ -68,6 +68,36 @@ const ReserveBayDialog = ({
     try {
       setLoading(true);
       
+      // Check if bay is still available before proceeding
+      const { data: latestBayData, error: bayCheckError } = await supabase
+        .from('bays')
+        .select('*')
+        .eq('bay_id', bay.bay_id)
+        .single();
+        
+      if (bayCheckError) throw bayCheckError;
+      
+      // Also check if there's a recent claim
+      const { data: recentClaims, error: claimsCheckError } = await supabase
+        .from('daily_claims')
+        .select('*')
+        .eq('bay_id', bay.bay_id)
+        .eq('claim_date', today)
+        .eq('status', 'Active');
+        
+      if (claimsCheckError) throw claimsCheckError;
+      
+      // If bay is now reserved, show an error
+      if (latestBayData.status === 'Maintenance' || recentClaims.length > 0) {
+        toast({
+          title: 'Bay No Longer Available',
+          description: 'This bay has just been reserved by someone else or marked as under maintenance. Please choose another bay.',
+          variant: 'destructive',
+        });
+        onOpenChange(false);
+        return;
+      }
+      
       if (assignmentType === 'today') {
         const { error } = await supabase
           .from('daily_claims')
