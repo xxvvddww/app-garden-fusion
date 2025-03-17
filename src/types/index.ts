@@ -15,7 +15,7 @@ export interface User {
 
 export interface Bay {
   bay_id: string;
-  bay_number: string;
+  bay_number: number; // Changed from string to number to match the database
   location: string;
   status: 'Available' | 'Reserved' | 'Maintenance';
   type?: string;
@@ -63,6 +63,7 @@ export const castToUser = (data: any): User => ({
 
 export const castToBay = (data: any): Bay => ({
   ...data,
+  bay_number: Number(data.bay_number), // Ensure bay_number is cast to a number
   status: data.status as Bay['status'],
   reserved_by_you: data.reserved_by_you || false,
   reserved_by: data.reserved_by || undefined

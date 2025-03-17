@@ -1,9 +1,8 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bay, DailyClaim, Announcement, PermanentAssignment } from '@/types';
+import { Bay, DailyClaim, Announcement, PermanentAssignment, castToBay } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
@@ -31,11 +30,8 @@ const Dashboard = () => {
 
         if (baysError) throw baysError;
         
-        // Type cast bay data
-        const typedBays = (baysData || []).map(bay => ({
-          ...bay,
-          status: bay.status as 'Available' | 'Reserved' | 'Maintenance'
-        }));
+        // Type cast bay data using our castToBay helper
+        const typedBays = (baysData || []).map(bay => castToBay(bay));
         
         setBays(typedBays);
 

@@ -43,7 +43,7 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
         )}
         
         <h3 className="font-medium text-sm mb-1">
-          {bay.bay_number}
+          {bay.bay_number.toString()}
         </h3>
         
         <Badge 
