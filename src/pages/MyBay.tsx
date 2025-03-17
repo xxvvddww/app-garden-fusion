@@ -12,7 +12,7 @@ import { format, addDays, isAfter, eachDayOfInterval } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import BayCard from '@/components/BayCard';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 const MyBay = () => {
   const { user } = useAuth();
@@ -165,38 +165,63 @@ const MyBay = () => {
         return;
       }
       
-      // Create a temporary claim in the daily_claims table, marking bay as Available
+      console.log('Making bay available for dates:', dates);
+      
+      // Process each date in the selected range
       for (const date of dates) {
+        console.log(`Processing date: ${date} for bay ${selectedBay.bay_id}`);
+        
         // First check if there's an existing claim for this date
-        const { data: existingClaims } = await supabase
+        const { data: existingClaims, error: fetchError } = await supabase
           .from('daily_claims')
           .select('*')
           .eq('bay_id', selectedBay.bay_id)
           .eq('claim_date', date)
           .eq('user_id', user.user_id);
         
+        if (fetchError) {
+          console.error('Error fetching existing claims:', fetchError);
+          throw fetchError;
+        }
+        
+        console.log('Existing claims found:', existingClaims);
+        
         // If a claim exists, update its status to 'Cancelled'
         if (existingClaims && existingClaims.length > 0) {
+          console.log(`Updating existing claim ${existingClaims[0].claim_id} to Cancelled`);
+          
           const { error: updateError } = await supabase
             .from('daily_claims')
             .update({ status: 'Cancelled' })
-            .eq('claim_id', existingClaims[0].claim_id);
+            .eq('claim_id', existingClaims[0].claim_id)
+            .eq('user_id', user.user_id); // Ensure we're only updating the user's own claims
           
-          if (updateError) throw updateError;
+          if (updateError) {
+            console.error('Error updating claim status:', updateError);
+            throw updateError;
+          }
         } else {
           // If no claim exists, create a new one with 'Cancelled' status
-          // This will signal that the user has made their bay available for this date
+          console.log('No existing claim found, creating new cancelled claim');
+          
+          const newClaim = {
+            bay_id: selectedBay.bay_id,
+            user_id: user.user_id,
+            claim_date: date,
+            status: 'Cancelled',
+            created_by: user.user_id
+          };
+          
+          console.log('Inserting new claim:', newClaim);
+          
           const { error: insertError } = await supabase
             .from('daily_claims')
-            .insert({
-              bay_id: selectedBay.bay_id,
-              user_id: user.user_id,
-              claim_date: date,
-              status: 'Cancelled',
-              created_by: user.user_id
-            });
+            .insert(newClaim);
           
-          if (insertError) throw insertError;
+          if (insertError) {
+            console.error('Error inserting new claim:', insertError);
+            throw insertError;
+          }
         }
       }
       
@@ -213,7 +238,7 @@ const MyBay = () => {
       console.error('Error updating bay status:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update bay status',
+        description: 'Failed to update bay status. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -315,7 +340,14 @@ const MyBay = () => {
               Cancel
             </Button>
             <Button onClick={makeAvailable} disabled={isSubmitting}>
-              {isSubmitting ? 'Processing...' : 'Make Available'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Make Available'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
