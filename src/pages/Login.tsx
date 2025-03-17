@@ -123,7 +123,7 @@ const Login = () => {
             <img 
               src="https://xkxaoyuxdxamhszltqgx.supabase.co/storage/v1/object/sign/images/TSA_Logo_Primary_White_RGB%201.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJpbWFnZXMvVFNBX0xvZ29fUHJpbWFyeV9XaGl0ZV9SR0IgMS5wbmciLCJpYXQiOjE3NDIyMTk4MzEsImV4cCI6MTg5OTg5OTgzMX0.kmAQ7UJRLeXXOicX-yGblOg8P0gkjih3ylWnigaAiGI" 
               alt="TSA Logo" 
-              className="h-20 w-auto mb-2"
+              className="h-24 w-auto object-contain"
             />
           </div>
           <CardTitle className="text-xl">
