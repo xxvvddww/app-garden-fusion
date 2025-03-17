@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { format, addDays, eachDayOfInterval } from 'date-fns';
+import { format, addDays, eachDayOfInterval, parse } from 'date-fns';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 
@@ -78,6 +78,84 @@ const MakeBayAvailableDialog = ({
       // Process each date in the selected range
       for (const date of dates) {
         console.log(`Processing date: ${date} for bay ${bay.bay_id}`);
+        
+        // Get the day of week for this date
+        const parsedDate = parse(date, 'yyyy-MM-dd', new Date());
+        const dayOfWeek = format(parsedDate, 'EEEE'); // 'Monday', 'Tuesday', etc.
+        
+        console.log(`Day of week for ${date}: ${dayOfWeek}`);
+        
+        // Check if there's a permanent assignment for this bay on this day of week
+        const { data: permanentAssignments, error: assignmentError } = await supabase
+          .from('permanent_assignments')
+          .select('*')
+          .eq('bay_id', bay.bay_id)
+          .eq('user_id', user.user_id)
+          .or(`day_of_week.eq.${dayOfWeek},day_of_week.eq.All Days`);
+        
+        if (assignmentError) {
+          console.error('Error fetching permanent assignments:', assignmentError);
+          throw assignmentError;
+        }
+        
+        console.log('Permanent assignments found:', permanentAssignments);
+        
+        // If there's a permanent assignment for this day, delete it
+        if (permanentAssignments && permanentAssignments.length > 0) {
+          for (const assignment of permanentAssignments) {
+            console.log(`Deleting permanent assignment ${assignment.assignment_id} for ${assignment.day_of_week}`);
+            
+            // If it's "All Days" assignment and we're only making a specific day available,
+            // we need to create new assignments for all other days
+            if (assignment.day_of_week === 'All Days' && dayOfWeek !== 'All Days') {
+              console.log('This is an "All Days" assignment, creating new assignments for other days');
+              
+              // First delete the "All Days" assignment
+              const { error: deleteError } = await supabase
+                .from('permanent_assignments')
+                .delete()
+                .eq('assignment_id', assignment.assignment_id);
+              
+              if (deleteError) {
+                console.error('Error deleting permanent assignment:', deleteError);
+                throw deleteError;
+              }
+              
+              // Then create new assignments for each day except the current day
+              const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+              for (const day of allDays) {
+                if (day !== dayOfWeek) {
+                  console.log(`Creating new assignment for ${day}`);
+                  
+                  const { error: insertError } = await supabase
+                    .from('permanent_assignments')
+                    .insert({
+                      bay_id: bay.bay_id,
+                      user_id: user.user_id,
+                      day_of_week: day,
+                      created_by: user.user_id
+                    });
+                  
+                  if (insertError) {
+                    console.error(`Error creating assignment for ${day}:`, insertError);
+                    throw insertError;
+                  }
+                }
+              }
+            } else {
+              // For regular day-specific assignments, just delete them
+              const { error: deleteError } = await supabase
+                .from('permanent_assignments')
+                .delete()
+                .eq('assignment_id', assignment.assignment_id);
+              
+              if (deleteError) {
+                console.error('Error deleting permanent assignment:', deleteError);
+                throw deleteError;
+              }
+            }
+          }
+        }
         
         // First check if there's an existing claim for this date
         const { data: existingClaims, error: fetchError } = await supabase
