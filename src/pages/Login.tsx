@@ -59,7 +59,7 @@ const Login = () => {
           console.log("Session exists but no user yet, waiting...");
           setTimeout(() => {
             setRedirectAttempts(prev => prev + 1);
-          }, 500);
+          }, 1000); // Increased from 500ms to 1000ms for more time to fetch profile
         }
       }
     };

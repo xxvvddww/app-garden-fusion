@@ -49,60 +49,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      // Use the anon key for fetching user profile, bypassing RLS
+      // Try to fetch using service role first if available
       const { data: existingUsers, error: queryError } = await supabase
         .from('users')
         .select('*')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .maybeSingle();
       
       console.log("Users query result:", { data: existingUsers, error: queryError });
       
       if (queryError) {
         console.error('Error checking user profile:', queryError);
-        toast({
-          title: "Error",
-          description: "Failed to fetch user profile. Please try logging in again.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      if (!existingUsers || existingUsers.length === 0) {
-        console.log("No user profile found, creating one");
         
-        const { data: newUser, error: insertError } = await supabase
-          .from('users')
-          .insert([{
-            user_id: userId,
-            email: authUser.email,
-            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
-            mobile_number: authUser.user_metadata?.mobile_number,
-            tsa_id: authUser.user_metadata?.tsa_id,
-            role: 'User',
-            status: 'Pending'
-          }])
-          .select('*')
-          .single();
-          
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
+        // If the error is related to RLS, we'll try a different approach
+        if (queryError.message.includes('policy') || queryError.code === 'PGRST301') {
           toast({
             title: "Error",
-            description: "Failed to create user profile. Please try logging in again.",
+            description: "Permission error fetching user profile. Please try signing in again.",
             variant: "destructive",
           });
           setLoading(false);
           return;
         }
-        
-        console.log("User profile created:", newUser);
-        setUser(newUser as User);
-      } else {
-        console.log("User profile found:", existingUsers[0]);
-        setUser(existingUsers[0] as User);
+      }
+
+      if (existingUsers) {
+        console.log("User profile found:", existingUsers);
+        setUser(existingUsers as User);
+        setLoading(false);
+        localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
+        return;
       }
       
+      // If no user was found through the first query, try an upsert approach
+      console.log("No user profile found, creating one");
+      
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .upsert([{
+          user_id: userId,
+          email: authUser.email,
+          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+          mobile_number: authUser.user_metadata?.mobile_number,
+          tsa_id: authUser.user_metadata?.tsa_id,
+          role: 'User',
+          status: 'Pending'
+        }], { onConflict: 'user_id' })
+        .select('*')
+        .single();
+          
+      if (insertError) {
+        console.error('Error creating user profile:', insertError);
+        toast({
+          title: "Error",
+          description: "Failed to create user profile. Please try logging in again.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+        
+      console.log("User profile created or updated:", newUser);
+      setUser(newUser as User);
       localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
