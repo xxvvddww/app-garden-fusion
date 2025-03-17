@@ -62,11 +62,9 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         throw new Error('No authenticated admin user found');
       }
       
-      // Log before the update to verify the user ID
       console.log('Approving user with ID:', userId);
       console.log('Current admin user ID:', currentUser.user_id);
       
-      // First, verify the user exists and is pending
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -85,7 +83,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
       
       console.log('User data before approval:', userData);
       
-      // Execute the update
       const updatePayload = { 
         status: 'Active',
         role: 'User',
@@ -107,7 +104,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         throw error;
       }
       
-      // Verify the update was successful with a fresh query
       const { data: verifyData, error: verifyError } = await supabase
         .from('users')
         .select('*')
@@ -131,7 +127,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         description: 'The user account has been approved successfully',
       });
       
-      // Refresh the pending users list
       await fetchPendingUsers();
       
     } catch (error: any) {
@@ -156,7 +151,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
       
       console.log('Rejecting user with ID:', userId);
       
-      // First, verify the user exists and is pending
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -193,7 +187,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         throw error;
       }
       
-      // Verify the update was successful
       const { data: verifyData, error: verifyError } = await supabase
         .from('users')
         .select('*')
@@ -217,7 +210,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         description: 'The user account has been rejected',
       });
       
-      // Refresh the pending users list
       await fetchPendingUsers();
       
     } catch (error: any) {
