@@ -68,7 +68,6 @@ const ReserveBayDialog = ({
       setLoading(true);
       
       if (assignmentType === 'today') {
-        // Reserve for today only (daily claim)
         const { error } = await supabase
           .from('daily_claims')
           .insert({
@@ -85,7 +84,6 @@ const ReserveBayDialog = ({
           description: `You have successfully reserved Bay ${bay.bay_number} for today`,
         });
       } else {
-        // Permanent assignment for a specific day of week
         const { error } = await supabase
           .from('permanent_assignments')
           .insert({
@@ -103,7 +101,6 @@ const ReserveBayDialog = ({
         });
       }
       
-      // Close the dialog and refresh the bays list
       onOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -124,7 +121,6 @@ const ReserveBayDialog = ({
     try {
       setLoading(true);
       
-      // Check if user has permanent assignment for this bay on current day
       const { data: assignmentData, error: assignmentError } = await supabase
         .from('permanent_assignments')
         .select('*')
@@ -135,7 +131,6 @@ const ReserveBayDialog = ({
       if (assignmentError) throw assignmentError;
       
       if (assignmentData && assignmentData.length > 0) {
-        // If permanent assignment exists, add a cancellation record for today
         const { error } = await supabase
           .from('daily_claims')
           .insert({
@@ -153,7 +148,6 @@ const ReserveBayDialog = ({
           description: `You have cancelled your reservation for Bay ${bay.bay_number} today`,
         });
       } else {
-        // Otherwise, update any existing active claim to cancelled
         const { error } = await supabase
           .from('daily_claims')
           .update({ status: 'Cancelled' })
@@ -170,7 +164,6 @@ const ReserveBayDialog = ({
         });
       }
       
-      // Close the dialog and refresh the bays list
       onOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -191,7 +184,6 @@ const ReserveBayDialog = ({
     try {
       setRevokingBay(true);
       
-      // Check if there's an active daily claim for this bay
       const { data: claimData, error: claimError } = await supabase
         .from('daily_claims')
         .select('claim_id')
@@ -201,7 +193,6 @@ const ReserveBayDialog = ({
         
       if (claimError) throw claimError;
       
-      // If there is an active claim, update it to cancelled
       if (claimData && claimData.length > 0) {
         const { error } = await supabase
           .from('daily_claims')
@@ -211,7 +202,6 @@ const ReserveBayDialog = ({
         if (error) throw error;
       }
       
-      // Check if there's a permanent assignment
       const { data: assignmentData, error: assignmentError } = await supabase
         .from('permanent_assignments')
         .select('assignment_id')
@@ -220,7 +210,6 @@ const ReserveBayDialog = ({
         
       if (assignmentError) throw assignmentError;
       
-      // If there is a permanent assignment, delete it
       if (assignmentData && assignmentData.length > 0) {
         const { error } = await supabase
           .from('permanent_assignments')
@@ -235,7 +224,6 @@ const ReserveBayDialog = ({
         description: `You have successfully revoked Bay ${bay.bay_number}`,
       });
       
-      // Close the dialogs and refresh the bays list
       setRevokeConfirmOpen(false);
       onOpenChange(false);
       onSuccess();

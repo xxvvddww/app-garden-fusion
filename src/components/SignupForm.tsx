@@ -12,7 +12,11 @@ import { useToast } from '@/components/ui/use-toast';
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().email('Please enter a valid email address')
+    .refine(
+      email => email.endsWith('@tsagroup.com.au'),
+      'Email must be from the tsagroup.com.au domain'
+    ),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   mobileNumber: z.string()
     .regex(/^614\d{8}$/, 'Mobile number must be in format 614XXXXXXXX with 8 digits after 614')
@@ -49,6 +53,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         options: {
           data: {
             name: values.name,
+            mobile_number: values.mobileNumber,
+            tsa_id: values.tsaId,
           },
         },
       });

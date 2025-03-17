@@ -15,21 +15,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Use localStorage to improve mobile session restoration
 const STORAGE_KEY = 'parking-app-user-data';
 const LAST_AUTH_CHECK_KEY = 'parking-app-last-auth-check';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(() => {
-    // Try to restore user from localStorage on initial load
     const storedUser = localStorage.getItem(STORAGE_KEY);
     return storedUser ? JSON.parse(storedUser) : null;
   });
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Save user to localStorage whenever it changes
   useEffect(() => {
     if (user) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
@@ -43,7 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       console.log("Fetching user profile for:", userId);
       
-      // Create a user record if it doesn't exist
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (!authUser) {
+        console.error("Auth user not found");
+        setLoading(false);
+        return;
+      }
+      
       const { data: existingUsers, error: queryError } = await supabase
         .from('users')
         .select('*')
@@ -63,24 +67,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!existingUsers || existingUsers.length === 0) {
         console.log("No user profile found, creating one");
         
-        // Get user metadata from auth
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        
-        if (!authUser) {
-          console.error("Auth user not found");
-          setLoading(false);
-          return;
-        }
-        
-        // Create a new user record
         const { data: newUser, error: insertError } = await supabase
           .from('users')
           .insert([{
             user_id: userId,
             email: authUser.email,
             name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+            mobile_number: authUser.user_metadata?.mobile_number,
+            tsa_id: authUser.user_metadata?.tsa_id,
             role: 'User',
-            status: 'Active'
+            status: 'Pending'
           }])
           .select('*')
           .single();
@@ -103,7 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(existingUsers[0] as User);
       }
       
-      // Store timestamp of successful auth check
       localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
@@ -123,7 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       try {
         setLoading(true);
-        // Get initial session
         const { data: sessionData } = await supabase.auth.getSession();
         console.log("Initial session fetched:", sessionData.session ? {
           id: sessionData.session.user.id,
@@ -142,7 +136,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
         }
         
-        // Set up auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
           console.log("Auth state changed:", event, newSession ? {
             id: newSession.user.id,
@@ -161,7 +154,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setLoading(false);
-            // Clear stored data on sign out
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem(LAST_AUTH_CHECK_KEY);
           }
@@ -178,10 +170,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     initAuth();
 
-    // Add visibility change listener for better mobile browser session restoration
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        // Check when we last successfully verified auth
         const lastAuthCheck = localStorage.getItem(LAST_AUTH_CHECK_KEY);
         const now = Date.now();
         const fiveMinutesAgo = now - (5 * 60 * 1000);
@@ -197,22 +187,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(true);
             const { data } = await supabase.auth.getSession();
             
-            // If we have a valid session
             if (data.session) {
               console.log('Valid session found on visibility change');
               setSession(data.session);
               
-              // Check if user data needs to be refreshed
               if (!user || user.user_id !== data.session.user.id) {
                 await fetchUserProfile(data.session.user.id);
               } else {
                 setLoading(false);
               }
               
-              // Update last auth check timestamp
               localStorage.setItem(LAST_AUTH_CHECK_KEY, now.toString());
             } else if (session) {
-              // We thought we had a session but it's invalid/expired
               console.log('Session invalid on visibility change');
               setSession(null);
               setUser(null);

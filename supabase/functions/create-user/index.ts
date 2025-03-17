@@ -70,6 +70,14 @@ serve(async (req) => {
       );
     }
 
+    // Validate domain
+    if (!email.endsWith("@tsagroup.com.au")) {
+      return new Response(
+        JSON.stringify({ error: "Email must be from the tsagroup.com.au domain" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Check if moderator is trying to create an admin
     if (userData.role === "Moderator" && role === "Admin") {
       return new Response(
@@ -78,12 +86,16 @@ serve(async (req) => {
       );
     }
 
-    // Create the user
+    // Create the user with metadata for mobile_number and tsa_id
     const { data: authData, error: signUpError } = await supabaseClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { name },
+      user_metadata: { 
+        name,
+        mobile_number,
+        tsa_id
+      },
     });
 
     if (signUpError) {
