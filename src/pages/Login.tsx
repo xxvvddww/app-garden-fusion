@@ -42,7 +42,7 @@ const Login = () => {
 
   // Effect for redirection logic
   useEffect(() => {
-    const redirectIfAuthenticated = () => {
+    const redirectIfAuthenticated = async () => {
       console.log("Checking auth state for redirect:", { 
         user, 
         loading, 

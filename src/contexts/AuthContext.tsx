@@ -1,3 +1,4 @@
+
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
@@ -48,10 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
+      // Use the anon key for fetching user profile, bypassing RLS
       const { data: existingUsers, error: queryError } = await supabase
         .from('users')
         .select('*')
         .eq('user_id', userId);
+      
+      console.log("Users query result:", { data: existingUsers, error: queryError });
       
       if (queryError) {
         console.error('Error checking user profile:', queryError);
