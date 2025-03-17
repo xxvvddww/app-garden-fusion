@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -305,10 +304,19 @@ const ReserveBayDialog = ({
     }
   };
 
+  const handleDialogOpenChange = (newOpenState: boolean) => {
+    if (!newOpenState) {
+      setRevokeConfirmOpen(false);
+      setAssignmentType('today');
+      setDayOfWeek('');
+    }
+    onOpenChange(newOpenState);
+  };
+
   if (!bay) return null;
   
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-[#0F1624] text-white border-[#1E2A45]">
         <DialogHeader>
           <DialogTitle className="text-xl">Bay {bay.bay_number}</DialogTitle>

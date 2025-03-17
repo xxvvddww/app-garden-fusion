@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -48,60 +49,72 @@ const Bays = () => {
   useEffect(() => {
     fetchBays();
 
-    // Setup subscription for real-time updates
-    const dailyClaimsChannel = supabase
-      .channel('daily-claims-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'daily_claims'
-        },
-        () => {
-          console.log('Daily claims changed, refreshing bays...');
-          fetchBays();
-        }
-      )
-      .subscribe();
+    // Setup subscription for real-time updates - fixed to avoid locking the UI
+    const setupRealtimeSubscriptions = () => {
+      const dailyClaimsChannel = supabase
+        .channel('daily-claims-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+            schema: 'public',
+            table: 'daily_claims'
+          },
+          () => {
+            console.log('Daily claims changed, refreshing bays...');
+            fetchBays();
+          }
+        )
+        .subscribe();
 
-    const permanentAssignmentsChannel = supabase
-      .channel('permanent-assignments-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'permanent_assignments'
-        },
-        () => {
-          console.log('Permanent assignments changed, refreshing bays...');
-          fetchBays();
-        }
-      )
-      .subscribe();
+      const permanentAssignmentsChannel = supabase
+        .channel('permanent-assignments-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+            schema: 'public',
+            table: 'permanent_assignments'
+          },
+          () => {
+            console.log('Permanent assignments changed, refreshing bays...');
+            fetchBays();
+          }
+        )
+        .subscribe();
 
-    const baysChannel = supabase
-      .channel('bays-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'bays'
-        },
-        () => {
-          console.log('Bays changed, refreshing bays...');
-          fetchBays();
-        }
-      )
-      .subscribe();
+      const baysChannel = supabase
+        .channel('bays-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+            schema: 'public',
+            table: 'bays'
+          },
+          () => {
+            console.log('Bays changed, refreshing bays...');
+            fetchBays();
+          }
+        )
+        .subscribe();
+
+      return {
+        dailyClaimsChannel,
+        permanentAssignmentsChannel,
+        baysChannel
+      };
+    };
+
+    // Initialize channels
+    const channels = setupRealtimeSubscriptions();
 
     // Cleanup subscriptions on component unmount
     return () => {
-      supabase.removeChannel(dailyClaimsChannel);
-      supabase.removeChannel(permanentAssignmentsChannel);
-      supabase.removeChannel(baysChannel);
+      console.log('Cleaning up Supabase channels...');
+      if (channels.dailyClaimsChannel) supabase.removeChannel(channels.dailyClaimsChannel);
+      if (channels.permanentAssignmentsChannel) supabase.removeChannel(channels.permanentAssignmentsChannel);
+      if (channels.baysChannel) supabase.removeChannel(channels.baysChannel);
     };
   }, []);
 
@@ -312,6 +325,7 @@ const Bays = () => {
   };
 
   const handleBayClick = (bay: Bay) => {
+    console.log('Bay clicked:', bay);
     setSelectedBay(bay);
     
     // If the bay is permanently assigned to the current user, open the make available dialog
