@@ -1,4 +1,3 @@
-
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
@@ -49,8 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // First attempt - directly insert user if they don't exist yet
-      // This helps when the trigger fails or for existing accounts
       try {
         console.log("Attempting direct upsert to ensure user exists");
         const { data: upsertResult, error: upsertError } = await supabase
@@ -79,7 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Continue to the next approach
       }
       
-      // Second attempt - try to fetch using regular query
       console.log("Attempting to fetch user with standard query");
       const { data: existingUsers, error: queryError } = await supabase
         .from('users')
@@ -100,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (queryError) {
         console.error('Error checking user profile:', queryError);
         
-        // Special handling for permission errors - attempt a bypass method
         if (queryError.message.includes('permission') || 
             queryError.message.includes('policy') || 
             queryError.code === 'PGRST301' ||
@@ -108,8 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           console.log("Detected permission issue, attempting bypass method");
           
-          // Use the auth.users data to create a minimal user object
-          // This allows the app to function even if RLS prevents direct DB access
           const minimumUserData: User = {
             user_id: userId,
             email: authUser.email || '',
@@ -130,8 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(minimumUserData));
           localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
           
-          // Show a toast about the permission issue but allow the user to continue
-          // Changed from "warning" to "default" to fix the type error
           toast({
             title: "Permission Notice",
             description: "Using limited profile due to database permissions. Some features may be restricted.",
@@ -141,7 +132,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       
-      // If we reach here, we couldn't get or create a user profile
       setLoading(false);
       toast({
         title: "Error",
