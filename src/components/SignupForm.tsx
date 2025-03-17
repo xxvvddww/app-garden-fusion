@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -32,6 +33,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const [countdown, setCountdown] = useState(15);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -123,12 +126,25 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
           
           toast({
             title: 'Account created',
-            description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+            description: 'Your account has been created and is pending admin approval. You will be redirected in 15 seconds.',
           });
           
-          // Stay signed in - the ProtectedRoute component will handle the pending status display
-          // No need to call signOut here
-          navigate('/');
+          // Start countdown timer and show account created state
+          setAccountCreated(true);
+          
+          // Start countdown
+          let timeLeft = 15;
+          const countdownTimer = setInterval(() => {
+            timeLeft -= 1;
+            setCountdown(timeLeft);
+            
+            if (timeLeft <= 0) {
+              clearInterval(countdownTimer);
+              // Navigate to home page after countdown
+              navigate('/');
+            }
+          }, 1000);
+          
         } catch (error) {
           console.error("Error in post-signup process:", error);
           setErrorMessage(`Error saving user profile: ${(error as Error).message}`);
@@ -149,7 +165,9 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
+      if (!accountCreated) {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -163,140 +181,152 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
         </Alert>
       )}
       
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="Your name"
-                  autoComplete="name"
-                  disabled={isSubmitting}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="your.email@tsagroup.com.au"
-                  autoComplete="email"
-                  disabled={isSubmitting}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="mobileNumber"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Mobile Number</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="614XXXXXXXX"
-                  autoComplete="tel"
-                  disabled={isSubmitting}
-                  maxLength={11}
-                  {...field}
-                  onChange={(e) => {
-                    // Enforce the 614 prefix
-                    let value = e.target.value;
-                    
-                    // If user clears the field, reset to '614'
-                    if (!value) {
-                      field.onChange('614');
-                      return;
-                    }
-                    
-                    // If user tries to modify the prefix, restore it
-                    if (!value.startsWith('614')) {
-                      value = '614' + value.replace(/[^0-9]/g, '');
-                    }
-                    
-                    // Limit to 11 characters (614 + 8 digits)
-                    if (value.length > 11) {
-                      value = value.slice(0, 11);
-                    }
-                    
-                    field.onChange(value);
-                  }}
-                />
-              </FormControl>
-              <FormDescription>
-                Format: 614XXXXXXXX (8 digits after 614)
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="tsaId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>TSA ID</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="8-digit TSA ID"
-                  autoComplete="off"
-                  maxLength={8}
-                  disabled={isSubmitting}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  disabled={isSubmitting}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? 'Creating account...' : 'Create account'}
-        </Button>
-        
-        <div className="text-center">
-          <Button type="button" variant="link" onClick={onToggleMode}>
-            Already have an account? Sign in
+      {accountCreated ? (
+        <Alert variant="default" className="mb-4 bg-green-50 text-green-800 border-green-200">
+          <AlertTitle>Account Created Successfully</AlertTitle>
+          <AlertDescription>
+            Your account has been created and is pending admin approval.
+            <div className="mt-2">
+              Redirecting in <span className="font-bold">{countdown}</span> seconds...
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Your name"
+                    autoComplete="name"
+                    disabled={isSubmitting}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="your.email@tsagroup.com.au"
+                    autoComplete="email"
+                    disabled={isSubmitting}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="mobileNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mobile Number</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="614XXXXXXXX"
+                    autoComplete="tel"
+                    disabled={isSubmitting}
+                    maxLength={11}
+                    {...field}
+                    onChange={(e) => {
+                      // Enforce the 614 prefix
+                      let value = e.target.value;
+                      
+                      // If user clears the field, reset to '614'
+                      if (!value) {
+                        field.onChange('614');
+                        return;
+                      }
+                      
+                      // If user tries to modify the prefix, restore it
+                      if (!value.startsWith('614')) {
+                        value = '614' + value.replace(/[^0-9]/g, '');
+                      }
+                      
+                      // Limit to 11 characters (614 + 8 digits)
+                      if (value.length > 11) {
+                        value = value.slice(0, 11);
+                      }
+                      
+                      field.onChange(value);
+                    }}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Format: 614XXXXXXXX (8 digits after 614)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="tsaId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>TSA ID</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="8-digit TSA ID"
+                    autoComplete="off"
+                    maxLength={8}
+                    disabled={isSubmitting}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    disabled={isSubmitting}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating account...' : 'Create account'}
           </Button>
-        </div>
-      </form>
+          
+          <div className="text-center">
+            <Button type="button" variant="link" onClick={onToggleMode}>
+              Already have an account? Sign in
+            </Button>
+          </div>
+        </form>
+      )}
     </Form>
   );
 };
