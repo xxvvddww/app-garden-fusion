@@ -90,9 +90,21 @@ const MakeBayAvailableDialog = ({
       
       console.log('Permanent assignments found:', permanentAssignments);
       
+      if (!permanentAssignments || permanentAssignments.length === 0) {
+        toast({
+          title: 'Error',
+          description: 'No permanent assignments found for this bay',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
       // Update each permanent assignment with the availability date range
       for (const assignment of permanentAssignments) {
-        console.log(`Updating assignment ${assignment.assignment_id} with availability dates`);
+        console.log(`Updating assignment ${assignment.assignment_id} with availability dates:`, { 
+          available_from: fromDate, 
+          available_to: toDate 
+        });
         
         const { error: updateError } = await supabase
           .from('permanent_assignments')
