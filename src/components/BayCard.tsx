@@ -19,7 +19,7 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
       className={`
         bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative h-[120px] transition-all duration-300 
         ${isReservedByYou ? 'border-green-500 border-2' : ''}
-        ${isAvailable ? 'border-blue-400 shadow-[0_0_10px_rgba(14,165,233,0.4)]' : ''}
+        ${isAvailable ? 'bay-border-glow' : ''}
         cursor-pointer
       `}
       onClick={() => onClick && onClick(bay)}

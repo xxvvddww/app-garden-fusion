@@ -122,3 +122,45 @@
   animation: flow-glow 3s infinite;
 }
 
+/* Rotating border animation for available bays */
+@keyframes border-rotate {
+  0% {
+    border-image-source: linear-gradient(0deg, #8B5CF6, #3B82F6, #10B981);
+  }
+  25% {
+    border-image-source: linear-gradient(90deg, #8B5CF6, #3B82F6, #10B981);
+  }
+  50% {
+    border-image-source: linear-gradient(180deg, #8B5CF6, #3B82F6, #10B981);
+  }
+  75% {
+    border-image-source: linear-gradient(270deg, #8B5CF6, #3B82F6, #10B981);
+  }
+  100% {
+    border-image-source: linear-gradient(360deg, #8B5CF6, #3B82F6, #10B981);
+  }
+}
+
+.bay-border-glow {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 0.5rem;
+  background-clip: padding-box;
+  animation: border-rotate 4s linear infinite;
+  border-image-slice: 1;
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+}
+
+.bay-border-glow::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #8B5CF6, #3B82F6, #10B981);
+  border-radius: 0.6rem;
+  z-index: -1;
+  animation: border-rotate 4s linear infinite;
+}
+
