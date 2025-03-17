@@ -1,3 +1,4 @@
+
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
@@ -130,10 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
           
           // Show a toast about the permission issue but allow the user to continue
+          // Changed from "warning" to "default" to fix the type error
           toast({
-            title: "Warning",
+            title: "Permission Notice",
             description: "Using limited profile due to database permissions. Some features may be restricted.",
-            variant: "warning",
+            variant: "default",
           });
           return;
         }
