@@ -77,6 +77,13 @@
   }
 }
 
+/* Custom styles for the TSA logo SVG */
+.logo-svg {
+  fill: white;
+  width: 120px;
+  height: auto;
+}
+
 /* Custom styles for the parking app */
 .card {
   @apply bg-slate-900 border border-slate-800 rounded-lg shadow-lg;
@@ -121,4 +128,3 @@
 .animate-flow {
   animation: flow-glow 3s infinite;
 }
-

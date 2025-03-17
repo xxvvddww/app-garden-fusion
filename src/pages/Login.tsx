@@ -122,11 +122,16 @@ const Login = () => {
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center mb-4">
             <div className="h-16 w-auto">
-              <img 
-                src="https://raisely-images.imgix.net/tsa-ruah/uploads/ruah-x-tsa-png-ba62a6.png?fit=max&w=673.5&auto=format&q=62&dpr=1 1x, https://raisely-images.imgix.net/tsa-ruah/uploads/ruah-x-tsa-png-ba62a6.png?fit=max&w=673.5&auto=format&q=62&dpr=2 2x" 
-                alt="TSA Ruah Logo" 
-                className="h-full w-auto"
-              />
+              <svg viewBox="0 0 100 45" xmlns="http://www.w3.org/2000/svg" className="logo-svg">
+                <use xlinkHref="https://tsagroup.com.au/wp-content/themes/tsa/assets/img/inline.svg#logo"></use>
+              </svg>
+              <style jsx>{`
+                .logo-svg {
+                  fill: white;
+                  width: 120px;
+                  height: auto;
+                }
+              `}</style>
             </div>
           </div>
           <CardTitle className="text-xl">
