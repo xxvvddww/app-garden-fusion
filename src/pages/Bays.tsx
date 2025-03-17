@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import BayCard from '@/components/BayCard';
 import ReserveBayDialog from '@/components/ReserveBayDialog';
 import MakeBayAvailableDialog from '@/components/MakeBayAvailableDialog';
+import BayAssignmentsTable from '@/components/BayAssignmentsTable';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -117,7 +118,7 @@ const Bays = () => {
 
       if (baysError) throw baysError;
       
-      // 2. Get daily claims for today
+      // 2. Get daily claims for today - include both active and cancelled claims
       const { data: dailyClaimsData, error: claimsError } = await supabase
         .from('daily_claims')
         .select('bay_id, user_id, status')
@@ -161,9 +162,16 @@ const Bays = () => {
         console.log(`Bay ${bayId}:`, Array.from(userSet));
       });
       
+      // Map permanent assignments by bay_id
       const permanentAssignmentsMap = new Map();
       permanentAssignmentsData.forEach(assignment => {
         permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+      });
+
+      // Debug log permanent assignments
+      console.log('Permanent Assignments Map:');
+      permanentAssignmentsMap.forEach((userId, bayId) => {
+        console.log(`Bay ${bayId} assigned to: ${userId}`);
       });
       
       // Collect all user IDs to fetch their names
@@ -223,6 +231,7 @@ const Bays = () => {
           
           // If this specific user's permanent assignment is cancelled for today, mark bay as available
           if (hasCancelledClaim) {
+            console.log(`Bay ${bay.bay_number} has been cancelled by its permanent assignee - marking as AVAILABLE`);
             return {
               ...baseBay,
               status: 'Available' as Bay['status']
@@ -295,6 +304,7 @@ const Bays = () => {
           <TabsTrigger value="all" className="flex-1">All Bays</TabsTrigger>
           <TabsTrigger value="available" className="flex-1">Available</TabsTrigger>
           <TabsTrigger value="reserved" className="flex-1">Reserved</TabsTrigger>
+          <TabsTrigger value="assignments" className="flex-1">Assignments</TabsTrigger>
         </TabsList>
         
         {['all', 'available', 'reserved'].map((tab) => (
@@ -336,6 +346,10 @@ const Bays = () => {
             </div>
           </TabsContent>
         ))}
+        
+        <TabsContent value="assignments">
+          <BayAssignmentsTable />
+        </TabsContent>
       </Tabs>
 
       <ReserveBayDialog 
