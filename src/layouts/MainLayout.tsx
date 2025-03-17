@@ -121,8 +121,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   if (isAdmin) {
     navigationItems.push({ 
       path: "/admin", 
-      label: "Admin",
-      hasNotification: hasUnreadAnnouncements
+      label: "Admin"
     });
   }
 
@@ -175,7 +174,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               >
                 <div className="flex items-center">
                   {item.label}
-                  {item.hasNotification && (
+                  {/* Show notification badge specifically for Admin */}
+                  {item.path === "/admin" && hasUnreadAnnouncements && (
                     <Badge variant="destructive" className="ml-2 h-2 w-2 rounded-full p-0 flex items-center justify-center">
                       <span className="sr-only">Notifications</span>
                     </Badge>
