@@ -14,6 +14,7 @@ interface BayCardProps {
 const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
   const isReservedByYou = bay.reserved_by_you === true;
   const isAvailable = bay.status === 'Available';
+  const isReservedByOther = bay.status === 'Reserved' && !isReservedByYou;
   const isMobile = useIsMobile();
 
   return (
@@ -22,6 +23,7 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
         bg-[#0F1624] border-[#1E2A45] text-white overflow-hidden relative 
         ${isMobile ? 'h-[84px]' : 'h-[120px]'} transition-all duration-300 
         ${isReservedByYou ? 'border-green-500 border-2' : ''}
+        ${isReservedByOther ? 'border-red-500 border-2' : ''}
         ${isAvailable ? 'border-blue-400 shadow-[0_0_10px_rgba(14,165,233,0.4)]' : ''}
         cursor-pointer
       `}
@@ -36,7 +38,9 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
                   ? 'text-green-400' 
                   : bay.status === 'Maintenance' 
                     ? 'text-orange-400' 
-                    : 'text-blue-400'
+                    : isReservedByYou
+                      ? 'text-green-400'
+                      : 'text-red-400'
               }`} 
             />
           </div>
@@ -53,8 +57,10 @@ const BayCard = ({ bay, onClick, reservedByName }: BayCardProps) => {
             ${bay.status === 'Available' 
               ? 'bg-green-900/40 text-green-400' 
               : bay.status === 'Maintenance' 
-                ? 'bg-orange-900/40 text-orange-400' 
-                : 'bg-blue-900/40 text-blue-400'}
+                ? 'bg-orange-900/40 text-orange-400'
+                : isReservedByYou
+                  ? 'bg-green-900/40 text-green-400'
+                  : 'bg-red-900/40 text-red-400'}
           `}
         >
           {bay.status}

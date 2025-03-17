@@ -17,7 +17,7 @@ const signupSchema = z.object({
   mobileNumber: z.string()
     .regex(/^614\d{8}$/, 'Mobile number must be in format 614XXXXXXXX with 8 digits after 614')
     .optional(),
-  tsaId: z.string().length(9, 'TSA ID must be exactly 9 digits').regex(/^\d+$/, 'TSA ID must contain only numbers'),
+  tsaId: z.string().length(8, 'TSA ID must be exactly 8 digits').regex(/^\d+$/, 'TSA ID must contain only numbers'),
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;

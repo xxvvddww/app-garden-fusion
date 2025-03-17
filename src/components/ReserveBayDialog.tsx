@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -30,6 +29,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
   const [isAvailable, setIsAvailable] = useState(true);
   const [isReservedByYou, setIsReservedByYou] = useState(false);
   const [unavailableReason, setUnavailableReason] = useState('');
+  const [hasExistingReservation, setHasExistingReservation] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -38,8 +38,85 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
   useEffect(() => {
     if (bay && open) {
       checkBayAvailability();
+      checkExistingReservation();
     }
   }, [bay, open]);
+
+  const checkExistingReservation = async () => {
+    if (!user) return;
+    
+    // Skip this check for admins - they can reserve multiple bays
+    if (user.role === 'Admin') {
+      setHasExistingReservation(false);
+      return;
+    }
+    
+    try {
+      // Check if user already has a bay reserved
+      const { data: dailyClaims, error: claimsError } = await supabase
+        .from('daily_claims')
+        .select('bay_id')
+        .eq('user_id', user.user_id)
+        .eq('claim_date', today)
+        .eq('status', 'Active');
+      
+      if (claimsError) throw claimsError;
+      
+      // Check permanent assignments for today
+      const { data: permanentAssignments, error: assignmentsError } = await supabase
+        .from('permanent_assignments')
+        .select('bay_id')
+        .eq('user_id', user.user_id)
+        .or(`day_of_week.eq.${currentDayOfWeek},day_of_week.eq.All Days`);
+      
+      if (assignmentsError) throw assignmentsError;
+      
+      // For permanent assignments, check if they are cancelled for today
+      let activePermanentAssignments = [];
+      if (permanentAssignments && permanentAssignments.length > 0) {
+        for (const assignment of permanentAssignments) {
+          // Check if this assignment is cancelled for today
+          const { data: cancelledClaims, error: cancelError } = await supabase
+            .from('daily_claims')
+            .select('claim_id')
+            .eq('bay_id', assignment.bay_id)
+            .eq('user_id', user.user_id)
+            .eq('claim_date', today)
+            .eq('status', 'Cancelled');
+          
+          if (cancelError) throw cancelError;
+          
+          // If not cancelled, add to active assignments
+          if (!cancelledClaims || cancelledClaims.length === 0) {
+            activePermanentAssignments.push(assignment);
+          }
+        }
+      }
+      
+      // User has an existing reservation if they have any active daily claims
+      // or any uncancelled permanent assignments for today
+      const hasReservation = 
+        (dailyClaims && dailyClaims.length > 0) || 
+        (activePermanentAssignments.length > 0);
+      
+      // If they have a reservation and it's not for the current bay
+      if (hasReservation && bay) {
+        const currentBayReserved = 
+          dailyClaims?.some(claim => claim.bay_id === bay.bay_id) ||
+          activePermanentAssignments.some(assign => assign.bay_id === bay.bay_id);
+        
+        // Only set as having existing reservation if it's not for the current bay
+        setHasExistingReservation(!currentBayReserved);
+      } else {
+        setHasExistingReservation(false);
+      }
+      
+    } catch (error) {
+      console.error('Error checking existing reservations:', error);
+      // Don't block the user from proceeding if this check fails
+      setHasExistingReservation(false);
+    }
+  };
 
   const checkBayAvailability = async () => {
     if (!bay || !user) return;
@@ -136,6 +213,16 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
 
   const handleReserve = async () => {
     if (!bay || !user) return;
+    
+    // Don't allow users to reserve multiple bays (except admins)
+    if (hasExistingReservation && user.role !== 'Admin') {
+      toast({
+        title: 'Reservation limit reached',
+        description: 'You already have a bay reserved for today. Please release your existing reservation first.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     try {
       setLoading(true);
@@ -316,6 +403,13 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
                   {unavailableReason}
                 </AlertDescription>
               </Alert>
+            ) : hasExistingReservation && user?.role !== 'Admin' ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  You already have a bay reserved for today. Please release your existing reservation first.
+                </AlertDescription>
+              </Alert>
             ) : (
               <>
                 <div className="flex items-center gap-2 text-sm">
@@ -355,7 +449,7 @@ const ReserveBayDialog = ({ bay, open, onOpenChange, onSuccess }: ReserveBayDial
           ) : (
             <Button
               onClick={handleReserve}
-              disabled={loading || !isAvailable || checkingAvailability}
+              disabled={loading || !isAvailable || checkingAvailability || (hasExistingReservation && user?.role !== 'Admin')}
             >
               {loading ? (
                 <>
