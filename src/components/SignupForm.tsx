@@ -73,10 +73,11 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
 
       if (data.user) {
         console.log("Auth user created successfully:", data.user.id);
+        console.log("User metadata:", data.user.user_metadata);
         
         // Explicitly insert a new record to ensure all fields are saved correctly
         // This bypasses any trigger that might be setting incorrect values
-        const { error: insertError } = await supabase
+        const { error: insertError, data: insertData } = await supabase
           .from('users')
           .insert({
             user_id: data.user.id,
@@ -87,6 +88,8 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
             status: 'Pending',
             role: 'User'
           });
+
+        console.log("Insert response:", { error: insertError, data: insertData });
 
         if (insertError) {
           console.error('Error inserting user details:', insertError);
@@ -149,7 +152,7 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="your.email@example.com"
+                  placeholder="your.email@tsagroup.com.au"
                   autoComplete="email"
                   disabled={isSubmitting}
                   {...field}
