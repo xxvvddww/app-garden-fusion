@@ -82,6 +82,12 @@ const Admin = () => {
   const [removedDays, setRemovedDays] = useState<string[]>([]);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [activeTab, setActiveTab] = useState(pendingUsersCount > 0 ? "approvals" : "management");
+  const [dailyClaims, setDailyClaims] = useState<ClaimWithDetails[]>([]);
+  const [permanentAssignments, setPermanentAssignments] = useState<AssignmentWithDetails[]>([]);
+  const [loadingClaims, setLoadingClaims] = useState(false);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [revokingClaimId, setRevokingClaimId] = useState<string | null>(null);
+  const [revokingAssignmentId, setRevokingAssignmentId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
