@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -47,106 +47,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
+      
+      const { data: existingUsers, error: queryError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', userId);
+      
+      if (queryError) {
+        console.error('Error checking user profile:', queryError);
+        toast({
+          title: "Error",
+          description: "Failed to fetch user profile. Please try logging in again.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
 
-      // First attempt - directly insert user if they don't exist yet
-      // This helps when the trigger fails or for existing accounts
-      try {
-        console.log("Attempting direct upsert to ensure user exists");
-        const { data: upsertResult, error: upsertError } = await supabase
+      if (!existingUsers || existingUsers.length === 0) {
+        console.log("No user profile found, creating one");
+        
+        const { data: newUser, error: insertError } = await supabase
           .from('users')
-          .upsert([{
+          .insert([{
             user_id: userId,
             email: authUser.email,
             name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
             mobile_number: authUser.user_metadata?.mobile_number,
             tsa_id: authUser.user_metadata?.tsa_id,
-            role: 'Admin', // Set role to Admin for now to ensure access
-            status: 'Active'
-          }], { 
-            onConflict: 'user_id',
-            ignoreDuplicates: false
-          });
-        
-        if (upsertError) {
-          console.log("Upsert failed but this is expected in some cases:", upsertError);
-          // Continue to the next approach
-        } else {
-          console.log("Upsert successful:", upsertResult);
-        }
-      } catch (error) {
-        console.log("Upsert attempt failed:", error);
-        // Continue to the next approach
-      }
-      
-      // Second attempt - try to fetch using regular query
-      console.log("Attempting to fetch user with standard query");
-      const { data: existingUsers, error: queryError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      console.log("Users query result:", { data: existingUsers, error: queryError });
-      
-      if (existingUsers) {
-        console.log("User profile found:", existingUsers);
-        setUser(existingUsers as User);
-        setLoading(false);
-        localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
-        return;
-      }
-      
-      if (queryError) {
-        console.error('Error checking user profile:', queryError);
-        
-        // Special handling for permission errors - attempt a bypass method
-        if (queryError.message.includes('permission') || 
-            queryError.message.includes('policy') || 
-            queryError.code === 'PGRST301' ||
-            queryError.message.includes('infinite recursion')) {
+            role: 'User',
+            status: 'Pending'
+          }])
+          .select('*')
+          .single();
           
-          console.log("Detected permission issue, attempting bypass method");
-          
-          // Use the auth.users data to create a minimal user object
-          // This allows the app to function even if RLS prevents direct DB access
-          const minimumUserData: User = {
-            user_id: userId,
-            email: authUser.email || '',
-            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
-            role: 'Admin', // Default to Admin to ensure access
-            status: 'Active',
-            created_by: null,
-            created_date: null,
-            mobile_number: authUser.user_metadata?.mobile_number || null,
-            tsa_id: authUser.user_metadata?.tsa_id || null,
-            updated_by: null,
-            updated_date: null
-          };
-          
-          console.log("Created fallback user profile:", minimumUserData);
-          setUser(minimumUserData);
-          setLoading(false);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(minimumUserData));
-          localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
-          
-          // Show a toast about the permission issue but allow the user to continue
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
           toast({
-            title: "Warning",
-            description: "Using limited profile due to database permissions. Some features may be restricted.",
-            variant: "warning",
+            title: "Error",
+            description: "Failed to create user profile. Please try logging in again.",
+            variant: "destructive",
           });
+          setLoading(false);
           return;
         }
+        
+        console.log("User profile created:", newUser);
+        setUser(newUser as User);
+      } else {
+        console.log("User profile found:", existingUsers[0]);
+        setUser(existingUsers[0] as User);
       }
       
-      // If we reach here, we couldn't get or create a user profile
-      setLoading(false);
-      toast({
-        title: "Error",
-        description: "Failed to retrieve your profile. Please try signing in again.",
-        variant: "destructive",
-      });
-      
+      localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       toast({
@@ -154,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "An unexpected error occurred while fetching your profile.",
         variant: "destructive",
       });
+    } finally {
       setLoading(false);
     }
   };
@@ -301,8 +255,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(LAST_AUTH_CHECK_KEY);
     } catch (error) {
       console.error('Sign out error:', error);
       toast({
