@@ -86,7 +86,7 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
       
       console.log('User data before approval:', userData);
       
-      // Execute the update with strict equality check
+      // Execute the update
       const updatePayload = { 
         status: 'Active',
         role: 'User',
