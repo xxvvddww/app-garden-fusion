@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -122,8 +123,8 @@ const Login = () => {
           <div className="flex justify-center mb-4">
             <div className="h-16 w-auto">
               <img 
-                src="https://tsagroup.com.au/wp-content/themes/tsa/assets/img/inline.svg" 
-                alt="TSA Logo" 
+                src="https://raisely-images.imgix.net/tsa-ruah/uploads/ruah-x-tsa-png-ba62a6.png?fit=max&w=673.5&auto=format&q=62&dpr=1 1x, https://raisely-images.imgix.net/tsa-ruah/uploads/ruah-x-tsa-png-ba62a6.png?fit=max&w=673.5&auto=format&q=62&dpr=2 2x" 
+                alt="TSA Ruah Logo" 
                 className="h-full w-auto"
               />
             </div>
