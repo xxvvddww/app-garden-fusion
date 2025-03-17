@@ -106,18 +106,22 @@ const MakeBayAvailableDialog = ({
           available_to: toDate 
         });
         
-        const { error: updateError } = await supabase
+        // Explicitly set the data type for the columns to ensure proper formatting
+        const { data: updateData, error: updateError } = await supabase
           .from('permanent_assignments')
           .update({
             available_from: fromDate,
             available_to: toDate
           })
-          .eq('assignment_id', assignment.assignment_id);
+          .eq('assignment_id', assignment.assignment_id)
+          .select();
         
         if (updateError) {
           console.error('Error updating permanent assignment:', updateError);
           throw updateError;
         }
+        
+        console.log('Update response:', updateData);
       }
       
       // For the selected dates, we also need to create cancelled daily claims
@@ -170,6 +174,19 @@ const MakeBayAvailableDialog = ({
             throw insertError;
           }
         }
+      }
+      
+      // Verify the updates were made successfully
+      const { data: verifyAssignments, error: verifyError } = await supabase
+        .from('permanent_assignments')
+        .select('*')
+        .eq('bay_id', bay.bay_id)
+        .eq('user_id', user.user_id);
+        
+      if (verifyError) {
+        console.error('Error verifying assignments:', verifyError);
+      } else {
+        console.log('Verified assignments after update:', verifyAssignments);
       }
       
       // Force a refresh of the data after making available
