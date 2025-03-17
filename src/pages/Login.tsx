@@ -120,13 +120,11 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-auto">
-              <img 
-                src="https://xkxaoyuxdxamhszltqgx.supabase.co/storage/v1/object/sign/images/TSA_Logo_Primary_White_RGB%201.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJpbWFnZXMvVFNBX0xvZ29fUHJpbWFyeV9XaGl0ZV9SR0IgMS5wbmciLCJpYXQiOjE3NDIyMTk4MzEsImV4cCI6MTg5OTg5OTgzMX0.kmAQ7UJRLeXXOicX-yGblOg8P0gkjih3ylWnigaAiGI" 
-                alt="TSA Logo" 
-                className="h-full w-auto"
-              />
-            </div>
+            <img 
+              src="https://xkxaoyuxdxamhszltqgx.supabase.co/storage/v1/object/sign/images/TSA_Logo_Primary_White_RGB%201.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJpbWFnZXMvVFNBX0xvZ29fUHJpbWFyeV9XaGl0ZV9SR0IgMS5wbmciLCJpYXQiOjE3NDIyMTk4MzEsImV4cCI6MTg5OTg5OTgzMX0.kmAQ7UJRLeXXOicX-yGblOg8P0gkjih3ylWnigaAiGI" 
+              alt="TSA Logo" 
+              className="h-20 w-auto mb-2"
+            />
           </div>
           <CardTitle className="text-xl">
             {authMode === 'login' ? 'Sign in to Bay Manager' : 'Create a Bay Manager Account'}
