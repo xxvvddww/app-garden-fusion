@@ -42,15 +42,13 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase.auth.signUp({
+      // First, create the auth user with Supabase
+      const { data, error } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
         options: {
           data: {
             name: values.name,
-            mobile_number: values.mobileNumber,
-            tsa_id: values.tsaId,
-            status: 'Pending', // Set initial status to Pending for admin approval
           },
         },
       });
@@ -61,12 +59,39 @@ const SignupForm = ({ onToggleMode }: { onToggleMode: () => void }) => {
           description: error.message,
           variant: 'destructive',
         });
-      } else {
-        toast({
-          title: 'Account created',
-          description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
-        });
-        onToggleMode(); // Switch back to login form
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (data.user) {
+        // Update the users table with additional fields and set status to Pending
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            mobile_number: values.mobileNumber,
+            tsa_id: values.tsaId,
+            status: 'Pending',
+            name: values.name,
+            role: 'User'
+          })
+          .eq('user_id', data.user.id);
+
+        if (updateError) {
+          console.error('Error updating user details:', updateError);
+          toast({
+            title: 'Signup partially completed',
+            description: 'Your account was created but some details could not be saved.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Account created',
+            description: 'Your account has been created and is pending admin approval. You will be notified when your account is approved.',
+          });
+          // Sign out the user since they need approval
+          await supabase.auth.signOut();
+          onToggleMode(); // Switch back to login form
+        }
       }
     } catch (error) {
       console.error('Signup error:', error);

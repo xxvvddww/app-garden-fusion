@@ -93,23 +93,21 @@ serve(async (req) => {
       );
     }
 
-    // The user record in our custom table is created by the database trigger
-    // But we need to update some additional fields
-    if (mobile_number || tsa_id) {
-      const { error: updateError } = await supabaseClient
-        .from("users")
-        .update({
-          mobile_number,
-          tsa_id,
-          role,
-          created_by: user.id,
-        })
-        .eq("user_id", authData.user.id);
+    // When an admin creates a user, set the status to Active directly (no need for approval)
+    const { error: updateError } = await supabaseClient
+      .from("users")
+      .update({
+        mobile_number,
+        tsa_id,
+        role,
+        status: 'Active', // Users created by admin are auto-approved
+        created_by: user.id,
+      })
+      .eq("user_id", authData.user.id);
 
-      if (updateError) {
-        console.error("Error updating user details:", updateError);
-        // We don't want to fail the request if this part fails
-      }
+    if (updateError) {
+      console.error("Error updating user details:", updateError);
+      // We don't want to fail the request if this part fails
     }
 
     // Log the audit event

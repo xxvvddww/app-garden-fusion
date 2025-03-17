@@ -146,6 +146,40 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     );
   }
 
+  // Check if account is pending approval
+  if (user.status === 'Pending') {
+    return (
+      <div className="container mx-auto p-4 flex flex-col items-center justify-center min-h-[80vh]">
+        <div className="bg-warning/10 text-warning p-6 rounded-lg max-w-md text-center">
+          <h1 className="text-xl font-bold mb-4">Account pending approval</h1>
+          <p className="mb-4">
+            Your account is currently pending administrator approval. You will be notified once your account has been approved.
+          </p>
+          <Button variant="outline" onClick={() => supabase.auth.signOut().then(() => navigate('/login'))}>
+            Sign Out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if account is rejected
+  if (user.status === 'Rejected') {
+    return (
+      <div className="container mx-auto p-4 flex flex-col items-center justify-center min-h-[80vh]">
+        <div className="bg-destructive/10 text-destructive p-6 rounded-lg max-w-md text-center">
+          <h1 className="text-xl font-bold mb-4">Account registration rejected</h1>
+          <p className="mb-4">
+            Your account registration has been rejected. Please contact an administrator for more information.
+          </p>
+          <Button variant="outline" onClick={() => supabase.auth.signOut().then(() => navigate('/login'))}>
+            Sign Out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Check if account is active
   if (user.status !== 'Active') {
     return (
@@ -155,6 +189,9 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           <p className="mb-4">
             Your account is currently not active. Please contact an administrator for assistance.
           </p>
+          <Button variant="outline" onClick={() => supabase.auth.signOut().then(() => navigate('/login'))}>
+            Sign Out
+          </Button>
         </div>
       </div>
     );
