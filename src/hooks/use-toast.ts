@@ -1,9 +1,6 @@
 
+import * as React from "react"
 import { Toast } from "@/components/ui/toast"
-import {
-  useToast as useToastPrimitive,
-  toast as toastPrimitive
-} from "@radix-ui/react-toast"
 
 const TOAST_LIMIT = 5
 const TOAST_REMOVE_DELAY = 1000000
@@ -14,6 +11,7 @@ type ToasterToast = {
   description?: React.ReactNode
   action?: React.ReactNode
   variant?: "default" | "destructive" | "warning"
+  duration?: number // Add duration to type definition
 }
 
 const actionTypes = {
@@ -94,7 +92,6 @@ const reducer = (state: State, action: Action): State => {
           t.id === toastId || toastId === undefined
             ? {
                 ...t,
-                open: false,
               }
             : t
         ),
@@ -130,6 +127,7 @@ function toast({
   description,
   action,
   variant,
+  duration,
 }: Omit<ToasterToast, "id">) {
   const id = genId()
 
@@ -148,7 +146,7 @@ function toast({
       description,
       action,
       variant,
-      open: true,
+      duration,
     },
   })
 

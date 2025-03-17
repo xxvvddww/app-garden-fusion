@@ -1,11 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, castToUser } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -130,7 +129,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
       toast({
         title: 'User Approved',
         description: 'The user account has been approved successfully',
-        duration: 3000,
       });
       
       // Refresh the pending users list
@@ -142,7 +140,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         title: 'Error',
         description: `Failed to approve user: ${error.message || 'Unknown error'}`,
         variant: 'destructive',
-        duration: 3000,
       });
     } finally {
       setProcessingUser(null);
@@ -218,7 +215,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
       toast({
         title: 'User Rejected',
         description: 'The user account has been rejected',
-        duration: 3000,
       });
       
       // Refresh the pending users list
@@ -230,7 +226,6 @@ const UserApproval = ({ onApprovalStatusChange }: UserApprovalProps) => {
         title: 'Error',
         description: `Failed to reject user: ${error.message || 'Unknown error'}`,
         variant: 'destructive',
-        duration: 3000,
       });
     } finally {
       setProcessingUser(null);
