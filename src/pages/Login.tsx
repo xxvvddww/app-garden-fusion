@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -29,7 +28,6 @@ const Login = () => {
   const [redirectAttempts, setRedirectAttempts] = useState(0);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Get the intended destination from location state, or default to '/'
   const from = location.state?.from?.pathname || '/';
 
   const form = useForm<LoginFormValues>({
@@ -40,7 +38,6 @@ const Login = () => {
     },
   });
 
-  // Effect for redirection logic
   useEffect(() => {
     const redirectIfAuthenticated = async () => {
       console.log("Checking auth state for redirect:", { 
@@ -55,11 +52,10 @@ const Login = () => {
           console.log("User is authenticated, redirecting to:", from);
           navigate(from, { replace: true });
         } else if (redirectAttempts < 10 && session && !user) {
-          // If we have a session but no user yet, wait a bit and retry
           console.log("Session exists but no user yet, waiting...");
           setTimeout(() => {
             setRedirectAttempts(prev => prev + 1);
-          }, 1500); // Increased wait time to allow more time for profile fetching
+          }, 1500);
         }
       }
     };
@@ -67,7 +63,6 @@ const Login = () => {
     redirectIfAuthenticated();
   }, [user, loading, session, navigate, from, redirectAttempts]);
 
-  // Clear login error when switching auth modes
   useEffect(() => {
     setLoginError(null);
   }, [authMode]);
@@ -96,7 +91,7 @@ const Login = () => {
           title: 'Welcome back',
           description: 'You have been signed in successfully.',
         });
-        // The redirect will be handled by the useEffect
+        navigate(from, { replace: true });
       }
     } catch (err) {
       console.error("Unexpected error during sign in:", err);
@@ -115,7 +110,6 @@ const Login = () => {
     setAuthMode(authMode === 'login' ? 'signup' : 'login');
   };
 
-  // Immediate redirect if the user is already authenticated
   if (!loading && user && session) {
     console.log("User is already authenticated, redirecting immediately");
     return <Navigate to={from} replace />;
@@ -125,15 +119,6 @@ const Login = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-auto">
-              <img 
-                src="https://tsagroup.com.au/wp-content/themes/tsa/assets/img/inline.svg#logo" 
-                alt="TSA Logo" 
-                className="h-full w-auto"
-              />
-            </div>
-          </div>
           <CardTitle className="text-xl">
             {authMode === 'login' ? 'Sign in to Bay Manager' : 'Create a Bay Manager Account'}
           </CardTitle>
