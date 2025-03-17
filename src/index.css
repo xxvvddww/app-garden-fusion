@@ -125,26 +125,26 @@
 /* Rotating border animation for available bays */
 @keyframes border-rotate {
   0% {
-    border-image-source: linear-gradient(0deg, #5B3A95, #2563EB, #065F46);
+    border-image-source: linear-gradient(0deg, #5B3A95, #2563EB);
   }
   25% {
-    border-image-source: linear-gradient(90deg, #5B3A95, #2563EB, #065F46);
+    border-image-source: linear-gradient(90deg, #5B3A95, #2563EB);
   }
   50% {
-    border-image-source: linear-gradient(180deg, #5B3A95, #2563EB, #065F46);
+    border-image-source: linear-gradient(180deg, #5B3A95, #2563EB);
   }
   75% {
-    border-image-source: linear-gradient(270deg, #5B3A95, #2563EB, #065F46);
+    border-image-source: linear-gradient(270deg, #5B3A95, #2563EB);
   }
   100% {
-    border-image-source: linear-gradient(360deg, #5B3A95, #2563EB, #065F46);
+    border-image-source: linear-gradient(360deg, #5B3A95, #2563EB);
   }
 }
 
 .bay-border-glow {
   position: relative;
   border: 1px solid transparent;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   background-clip: padding-box;
   animation: border-rotate 4s linear infinite;
   border-image-slice: 1;
@@ -158,8 +158,8 @@
   left: -1px;
   right: -1px;
   bottom: -1px;
-  background: linear-gradient(45deg, #5B3A95, #2563EB, #065F46);
-  border-radius: 0.5rem;
+  background: linear-gradient(45deg, #5B3A95, #2563EB);
+  border-radius: 0.75rem;
   z-index: -1;
   animation: border-rotate 4s linear infinite;
   opacity: 0.6;
