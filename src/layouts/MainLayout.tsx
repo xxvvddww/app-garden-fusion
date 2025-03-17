@@ -1,3 +1,4 @@
+
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeProvider';
@@ -5,7 +6,8 @@ import { cn } from '@/lib/utils';
 import { 
   SunMedium, 
   MoonStar, 
-  LogOut
+  LogOut,
+  BellDot
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -30,6 +33,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   const location = useLocation();
   const isAdmin = user && user.role === 'Admin';
   const [hasAssignedBay, setHasAssignedBay] = useState(false);
+  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
   
   useEffect(() => {
     const checkUserAssignments = async () => {
@@ -53,6 +57,43 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     checkUserAssignments();
   }, [user]);
 
+  useEffect(() => {
+    // Only check for unread announcements if the user is an admin
+    const checkUnreadAnnouncements = async () => {
+      if (user && isAdmin) {
+        try {
+          const { data, error } = await supabase
+            .rpc('get_unread_announcements_for_user', { user_id_param: user.user_id });
+            
+          if (error) throw error;
+          setHasUnreadAnnouncements(data && data.length > 0);
+        } catch (error) {
+          console.error('Error checking unread announcements:', error);
+          setHasUnreadAnnouncements(false);
+        }
+      }
+    };
+    
+    checkUnreadAnnouncements();
+    
+    // Set up real-time subscription for announcements if user is admin
+    if (user && isAdmin) {
+      const channel = supabase
+        .channel('public:announcements')
+        .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'announcements' }, 
+          () => {
+            checkUnreadAnnouncements();
+          }
+        )
+        .subscribe();
+        
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user, isAdmin]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
@@ -72,7 +113,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   if (isAdmin) {
     navigationItems.push({ 
       path: "/admin", 
-      label: "Admin"
+      label: "Admin",
+      hasNotification: hasUnreadAnnouncements
     });
   }
 
@@ -123,7 +165,14 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                     : "text-slate-400 hover:text-white"
                 )}
               >
-                {item.label}
+                <div className="flex items-center">
+                  {item.label}
+                  {item.hasNotification && (
+                    <Badge variant="destructive" className="ml-2 h-2 w-2 rounded-full p-0 flex items-center justify-center">
+                      <span className="sr-only">Notifications</span>
+                    </Badge>
+                  )}
+                </div>
                 <span 
                   className={cn(
                     "absolute bottom-0 left-0 w-full h-0.5",
