@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import SignupForm from '@/components/SignupForm';
+import { cn } from '@/lib/utils';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -27,6 +28,7 @@ const Login = () => {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [redirectAttempts, setRedirectAttempts] = useState(0);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [logoGlowColor, setLogoGlowColor] = useState<string>('#9b87f5');
 
   const from = location.state?.from?.pathname || '/';
 
@@ -37,6 +39,25 @@ const Login = () => {
       password: '',
     },
   });
+
+  useEffect(() => {
+    const colors = [
+      '#9b87f5', // Primary Purple
+      '#8B5CF6', // Vivid Purple
+      '#D946EF', // Magenta Pink
+      '#F97316', // Bright Orange
+      '#0EA5E9', // Ocean Blue
+    ];
+    
+    let colorIndex = 0;
+    
+    const intervalId = setInterval(() => {
+      colorIndex = (colorIndex + 1) % colors.length;
+      setLogoGlowColor(colors[colorIndex]);
+    }, 3000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     const redirectIfAuthenticated = async () => {
@@ -120,11 +141,21 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center mb-4">
-            <img 
-              src="https://xkxaoyuxdxamhszltqgx.supabase.co/storage/v1/object/sign/images/TSA_Logo_Primary_White_RGB%201.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJpbWFnZXMvVFNBX0xvZ29fUHJpbWFyeV9XaGl0ZV9SR0IgMS5wbmciLCJpYXQiOjE3NDIyMTk4MzEsImV4cCI6MTg5OTg5OTgzMX0.kmAQ7UJRLeXXOicX-yGblOg8P0gkjih3ylWnigaAiGI" 
-              alt="TSA Logo" 
-              className="h-24 w-auto object-contain"
-            />
+            <div 
+              className="relative flex justify-center items-center"
+              style={{
+                filter: `drop-shadow(0 0 10px ${logoGlowColor})`,
+                transition: 'filter 1.5s ease-in-out'
+              }}
+            >
+              <img 
+                src="https://xkxaoyuxdxamhszltqgx.supabase.co/storage/v1/object/sign/images/TSA_Logo_Primary_White_RGB%201.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJpbWFnZXMvVFNBX0xvZ29fUHJpbWFyeV9XaGl0ZV9SR0IgMS5wbmciLCJpYXQiOjE3NDIyMTk4MzEsImV4cCI6MTg5OTg5OTgzMX0.kmAQ7UJRLeXXOicX-yGblOg8P0gkjih3ylWnigaAiGI" 
+                alt="TSA Logo" 
+                className={cn(
+                  "h-24 w-auto object-contain relative z-10",
+                )}
+              />
+            </div>
           </div>
           <CardTitle className="text-xl">
             {authMode === 'login' ? 'Sign in to Bay Manager' : 'Create a Bay Manager Account'}
