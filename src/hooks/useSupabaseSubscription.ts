@@ -65,7 +65,7 @@ export function useSupabaseSubscription(
           const channel = supabase
             .channel(channelName)
             .on(
-              'postgres_changes', // This is the correct event name
+              'postgres_changes', 
               {
                 event: cfg.event || '*',
                 schema: cfg.schema || 'public',
