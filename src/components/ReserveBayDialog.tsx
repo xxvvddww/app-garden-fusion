@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -299,9 +300,18 @@ const ReserveBayDialog = ({
         description: `You have successfully revoked Bay ${bay.bay_number}`,
       });
       
+      // Ensure state is properly reset
       setRevokeConfirmOpen(false);
-      onOpenChange(false);
-      onSuccess();
+      setRevokingBay(false);
+      
+      // Use setTimeout to ensure state updates are processed before dialog closes
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        }
+        onOpenChange(false);
+      }, 10);
+      
     } catch (error) {
       console.error('Error revoking bay:', error);
       toast({
@@ -309,16 +319,18 @@ const ReserveBayDialog = ({
         description: 'There was an error revoking this bay. Please try again.',
         variant: 'destructive',
       });
-    } finally {
       setRevokingBay(false);
     }
   };
 
   const handleDialogOpenChange = (newOpenState: boolean) => {
     if (!newOpenState) {
+      // Reset all states when dialog is closing
       setRevokeConfirmOpen(false);
       setAssignmentType('today');
       setDayOfWeek('');
+      setRevokingBay(false);
+      setLoading(false);
     }
     onOpenChange(newOpenState);
   };
@@ -469,7 +481,10 @@ const ReserveBayDialog = ({
                       Cancel
                     </AlertDialogCancel>
                     <AlertDialogAction 
-                      onClick={handleAdminRevokeBay}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleAdminRevokeBay();
+                      }}
                       className="bg-red-600 hover:bg-red-700"
                     >
                       Yes, Revoke Bay

@@ -352,6 +352,19 @@ const Bays = () => {
     }
   };
 
+  const handleDialogClose = () => {
+    setSelectedBay(null);
+    setReserveDialogOpen(false);
+    setAvailabilityDialogOpen(false);
+  };
+
+  const handleReservationSuccess = () => {
+    setSelectedBay(null);
+    setReserveDialogOpen(false);
+    setAvailabilityDialogOpen(false);
+    fetchBays();
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -427,16 +440,30 @@ const Bays = () => {
       <ReserveBayDialog 
         bay={selectedBay}
         open={reserveDialogOpen}
-        onOpenChange={setReserveDialogOpen}
-        onSuccess={fetchBays}
+        onOpenChange={(open) => {
+          setReserveDialogOpen(open);
+          if (!open) {
+            setTimeout(() => {
+              setSelectedBay(null);
+            }, 100);
+          }
+        }}
+        onSuccess={handleReservationSuccess}
         isAdmin={isAdmin}
       />
 
       <MakeBayAvailableDialog 
         bay={selectedBay}
         open={availabilityDialogOpen}
-        onOpenChange={setAvailabilityDialogOpen}
-        onSuccess={fetchBays}
+        onOpenChange={(open) => {
+          setAvailabilityDialogOpen(open);
+          if (!open) {
+            setTimeout(() => {
+              setSelectedBay(null);
+            }, 100);
+          }
+        }}
+        onSuccess={handleReservationSuccess}
       />
     </div>
   );
