@@ -176,7 +176,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               >
                 <div className="flex items-center">
                   {item.label}
-                  {item.path === "/admin" && hasUnreadAnnouncements && (
+                  {item.hasNotification && (
                     <Badge variant="destructive" className="ml-2 h-2 w-2 rounded-full p-0 flex items-center justify-center">
                       <span className="sr-only">Notifications</span>
                     </Badge>
