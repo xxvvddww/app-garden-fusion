@@ -56,6 +56,7 @@ export function useBaysData() {
       console.log('Current day of week:', currentDayOfWeek);
       console.log('Daily claims:', dailyClaimsData);
       console.log('Permanent assignments:', permanentAssignmentsData);
+      console.log('All bays data:', baysData);
       
       const activeDailyClaimsMap = new Map();
       const cancelledDailyClaimsMap = new Map();
@@ -142,6 +143,7 @@ export function useBaysData() {
           return baseBay;
         }
         
+        // Check active daily claims first (highest priority)
         if (activeDailyClaimsMap.has(bay.bay_id)) {
           const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
           const claimedByUser = claimedByUserId === user?.user_id;
@@ -154,6 +156,7 @@ export function useBaysData() {
           };
         }
         
+        // Check if temporarily available
         if (temporarilyAvailableBays.has(bay.bay_id)) {
           console.log(`Bay ${bay.bay_number} is temporarily available for today`);
           return {
@@ -162,10 +165,12 @@ export function useBaysData() {
           };
         }
         
+        // Check permanent assignments
         if (permanentAssignmentsMap.has(bay.bay_id)) {
           const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
           const assignedToUser = assignedToUserId === user?.user_id;
           
+          // Check if the permanent assignee has cancelled for today
           const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
                               cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
           
@@ -188,6 +193,7 @@ export function useBaysData() {
           };
         }
         
+        // If no claims or assignments, bay is available
         return {
           ...baseBay,
           status: 'Available' as Bay['status']
@@ -195,6 +201,11 @@ export function useBaysData() {
       });
       
       if (isMountedRef.current) {
+        // Log the final bay status for debugging
+        updatedBays.forEach(bay => {
+          console.log(`Final status - Bay ${bay.bay_number}: ${bay.status}${bay.reserved_by ? ' (Reserved by: ' + bay.reserved_by + ')' : ''}`);
+        });
+        
         setBays(updatedBays as Bay[]);
         
         if (timeoutRef.current) {
