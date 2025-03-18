@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -57,7 +56,7 @@ const ReserveBayDialog = ({
   const { toast } = useToast();
   const today = format(new Date(), 'yyyy-MM-dd');
   const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
-  const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
+  const currentDayOfWeek = format(new Date(), 'EEEE');
   const tomorrowDayOfWeek = format(addDays(new Date(), 1), 'EEEE');
   
   const dayOptions = [
@@ -70,7 +69,6 @@ const ReserveBayDialog = ({
     try {
       setLoading(true);
       
-      // Check if bay is still available before proceeding
       const { data: latestBayData, error: bayCheckError } = await supabase
         .from('bays')
         .select('*')
@@ -79,7 +77,6 @@ const ReserveBayDialog = ({
         
       if (bayCheckError) throw bayCheckError;
       
-      // Also check if there's a recent claim
       const { data: recentClaims, error: claimsCheckError } = await supabase
         .from('daily_claims')
         .select('*')
@@ -89,7 +86,6 @@ const ReserveBayDialog = ({
         
       if (claimsCheckError) throw claimsCheckError;
       
-      // If bay is now reserved, show an error
       if (latestBayData.status === 'Maintenance' || latestBayData.status === 'Reserved' || recentClaims.length > 0) {
         toast({
           title: 'Bay No Longer Available',
@@ -130,7 +126,6 @@ const ReserveBayDialog = ({
           
         if (error) throw error;
         
-        // Update the bay status to Reserved immediately after assigning permanently
         const { error: bayUpdateError } = await supabase
           .from('bays')
           .update({ status: 'Reserved' })
@@ -170,7 +165,6 @@ const ReserveBayDialog = ({
       if (bay.is_permanent) {
         console.log("Cancelling permanent reservation for today");
         
-        // For permanent assignments, create a cancellation record for today
         const { error } = await supabase
           .from('daily_claims')
           .insert({
@@ -193,7 +187,6 @@ const ReserveBayDialog = ({
       } else {
         console.log("Cancelling daily claim");
         
-        // For daily claims, update the existing claim to cancelled
         const { data: claims, error: fetchError } = await supabase
           .from('daily_claims')
           .select('claim_id')
@@ -250,15 +243,18 @@ const ReserveBayDialog = ({
     try {
       setRevokingBay(true);
       
-      // Step 1: Update the bay status to Available
       const { error: bayUpdateError } = await supabase
         .from('bays')
         .update({ status: 'Available' })
         .eq('bay_id', bay.bay_id);
         
-      if (bayUpdateError) throw bayUpdateError;
+      if (bayUpdateError) {
+        console.error('Error updating bay status:', bayUpdateError);
+        throw bayUpdateError;
+      }
       
-      // Step 2: Cancel any active claims for today
+      console.log(`Successfully updated bay ${bay.bay_number} status to Available in database`);
+      
       const { data: claimData, error: claimError } = await supabase
         .from('daily_claims')
         .select('claim_id')
@@ -275,9 +271,10 @@ const ReserveBayDialog = ({
           .eq('claim_id', claimData[0].claim_id);
           
         if (error) throw error;
+        
+        console.log(`Successfully cancelled daily claim for bay ${bay.bay_number}`);
       }
       
-      // Step 3: Remove any permanent assignments for this bay
       const { data: assignmentData, error: assignmentError } = await supabase
         .from('permanent_assignments')
         .select('assignment_id')
@@ -287,12 +284,31 @@ const ReserveBayDialog = ({
       if (assignmentError) throw assignmentError;
       
       if (assignmentData && assignmentData.length > 0) {
-        const { error } = await supabase
-          .from('permanent_assignments')
-          .delete()
-          .eq('assignment_id', assignmentData[0].assignment_id);
-          
-        if (error) throw error;
+        for (const assignment of assignmentData) {
+          const { error } = await supabase
+            .from('permanent_assignments')
+            .delete()
+            .eq('assignment_id', assignment.assignment_id);
+            
+          if (error) {
+            console.error('Error deleting permanent assignment:', error);
+            throw error;
+          }
+        }
+        
+        console.log(`Successfully deleted permanent assignments for bay ${bay.bay_number}`);
+      }
+      
+      const { data: verifyBay, error: verifyError } = await supabase
+        .from('bays')
+        .select('status')
+        .eq('bay_id', bay.bay_id)
+        .single();
+        
+      if (verifyError) {
+        console.error('Error verifying bay status:', verifyError);
+      } else {
+        console.log(`Verified bay ${bay.bay_number} status is now: ${verifyBay.status}`);
       }
       
       toast({
@@ -300,11 +316,9 @@ const ReserveBayDialog = ({
         description: `You have successfully revoked Bay ${bay.bay_number}`,
       });
       
-      // Ensure state is properly reset
       setRevokeConfirmOpen(false);
       setRevokingBay(false);
       
-      // Use setTimeout to ensure state updates are processed before dialog closes
       setTimeout(() => {
         if (onSuccess) {
           onSuccess();
@@ -325,7 +339,6 @@ const ReserveBayDialog = ({
 
   const handleDialogOpenChange = (newOpenState: boolean) => {
     if (!newOpenState) {
-      // Reset all states when dialog is closing
       setRevokeConfirmOpen(false);
       setAssignmentType('today');
       setDayOfWeek('');
@@ -337,7 +350,6 @@ const ReserveBayDialog = ({
 
   if (!bay) return null;
   
-  // Show reserved status for all bays marked as reserved in the database, regardless of user role
   const bayIsReserved = bay.status === 'Reserved' || bay.reserved_by_you;
   
   return (
