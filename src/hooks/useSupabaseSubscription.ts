@@ -61,10 +61,10 @@ export function useSupabaseSubscription(
         console.log(`Setting up Supabase subscription for ${cfg.table}`);
         
         try {
+          // Using the correct types for the Supabase Realtime API
           const channel = supabase
             .channel(channelName)
-            .on(
-              'postgres_changes', // This is the correct event type for Supabase
+            .on('postgres_changes', // Using the string literal here for clarity
               {
                 event: cfg.event || '*',
                 schema: cfg.schema || 'public',
