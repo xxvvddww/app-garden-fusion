@@ -14,7 +14,7 @@ export const processBayData = (
   today: string,
   currentDayOfWeek: string
 ): Bay[] => {
-  if (!baysData || !Array.isArray(baysData)) {
+  if (!baysData || !Array.isArray(baysData) || baysData.length === 0) {
     console.error('Invalid or missing bays data:', baysData);
     return [];
   }
@@ -28,6 +28,8 @@ export const processBayData = (
   // Process daily claims
   if (dailyClaimsData && Array.isArray(dailyClaimsData)) {
     dailyClaimsData.forEach(claim => {
+      if (!claim || !claim.bay_id) return;
+
       if (claim.status === 'Active') {
         activeDailyClaimsMap.set(claim.bay_id, claim.user_id);
       } else if (claim.status === 'Cancelled') {
@@ -42,6 +44,8 @@ export const processBayData = (
   // Process permanent assignments
   if (permanentAssignmentsData && Array.isArray(permanentAssignmentsData)) {
     permanentAssignmentsData.forEach(assignment => {
+      if (!assignment || !assignment.bay_id) return;
+
       // Check if bay is temporarily made available
       const isTemporarilyAvailable = 
         assignment.available_from && 
@@ -66,6 +70,11 @@ export const processBayData = (
   
   // Process bays with all the collected information
   return baysData.map(bay => {
+    if (!bay || !bay.bay_id) {
+      console.error('Invalid bay object:', bay);
+      return null;
+    }
+
     const baseBay = castToBay(bay);
     
     if (baseBay.status === 'Maintenance') {
@@ -127,14 +136,21 @@ export const processBayData = (
       ...baseBay,
       status: 'Available' as Bay['status']
     };
-  });
+  }).filter(Boolean) as Bay[]; // Filter out any null values that might have resulted from invalid bay objects
 };
 
 /**
  * Log bay status for debugging
  */
 export const logBayStatus = (bays: Bay[]) => {
+  if (!bays || !Array.isArray(bays)) {
+    console.error('Invalid bays array for logging:', bays);
+    return;
+  }
+  
   bays.forEach(bay => {
-    console.log(`Final status - Bay ${bay.bay_number}: ${bay.status}${bay.reserved_by ? ' (Reserved by: ' + bay.reserved_by + ')' : ''}`);
+    if (bay && bay.bay_number) {
+      console.log(`Final status - Bay ${bay.bay_number}: ${bay.status}${bay.reserved_by ? ' (Reserved by: ' + bay.reserved_by + ')' : ''}`);
+    }
   });
 };

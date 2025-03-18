@@ -48,19 +48,27 @@ export const useBayDataFetcher = () => {
       
       // Extract all user IDs for fetching names
       const userIds = new Set<string>();
-      dailyClaimsData.forEach(claim => {
-        if (claim.user_id) userIds.add(claim.user_id);
-      });
-      permanentAssignmentsData.forEach(assignment => {
-        if (assignment.user_id) userIds.add(assignment.user_id);
-      });
+      if (dailyClaimsData) {
+        dailyClaimsData.forEach(claim => {
+          if (claim.user_id) userIds.add(claim.user_id);
+        });
+      }
+      if (permanentAssignmentsData) {
+        permanentAssignmentsData.forEach(assignment => {
+          if (assignment.user_id) userIds.add(assignment.user_id);
+        });
+      }
       
       // Fetch user names if there are any user IDs
       if (userIds.size > 0) {
         await fetchUserNames(userIds);
       }
       
-      return { baysData, dailyClaimsData, permanentAssignmentsData };
+      return { 
+        baysData: baysData || [], 
+        dailyClaimsData: dailyClaimsData || [], 
+        permanentAssignmentsData: permanentAssignmentsData || []
+      };
     } catch (error) {
       console.error('Error fetching bay data:', error);
       toast({
@@ -68,7 +76,12 @@ export const useBayDataFetcher = () => {
         description: 'Failed to load bays data',
         variant: 'destructive',
       });
-      throw error;
+      // Return empty arrays instead of throwing error to prevent rendering crashes
+      return { 
+        baysData: [], 
+        dailyClaimsData: [], 
+        permanentAssignmentsData: [] 
+      };
     }
   }, [today, currentDayOfWeek, fetchUserNames, toast]);
   

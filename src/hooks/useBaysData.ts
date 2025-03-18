@@ -29,9 +29,16 @@ export function useBaysData() {
       setLoading(true);
       
       // Fetch all required data from Supabase
-      const { baysData, dailyClaimsData, permanentAssignmentsData } = await fetchBayData();
+      const result = await fetchBayData();
       
       if (!isMountedRef.current) return;
+      
+      if (!result || !result.baysData) {
+        console.error('No bays data returned from fetchBayData');
+        throw new Error('No bays data returned');
+      }
+      
+      const { baysData, dailyClaimsData, permanentAssignmentsData } = result;
       
       // Process the bay data
       const updatedBays = processBayData(
@@ -49,7 +56,7 @@ export function useBaysData() {
         logBayStatus(updatedBays);
         
         // Update state with processed bays
-        setBays(updatedBays as Bay[]);
+        setBays(updatedBays);
         
         if (timeoutRef.current) {
           window.clearTimeout(timeoutRef.current);
@@ -66,6 +73,7 @@ export function useBaysData() {
       console.error('Error in fetchBays:', error);
       if (isMountedRef.current) {
         setLoading(false);
+        setBays([]); // Ensure we have an empty array rather than undefined
         toast({
           title: 'Error',
           description: 'Failed to load bays data. Please try again.',
