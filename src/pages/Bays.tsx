@@ -131,15 +131,26 @@ const Bays = () => {
         if (isTemporarilyAvailable) {
           temporarilyAvailableBays.set(assignment.bay_id, assignment.user_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
-        } else {
+        } else if (assignment.available_from === null && assignment.available_to === null) {
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
-          console.log(`Bay ${assignment.bay_id} has permanent assignment to user ${assignment.user_id} (available_from=${assignment.available_from || 'NULL'}, available_to=${assignment.available_to || 'NULL'})`);
+          console.log(`Bay ${assignment.bay_id} has permanent assignment to user ${assignment.user_id}`);
+        } else {
+          console.log(`Bay ${assignment.bay_id} has neither temporary nor permanent status:`, {
+            available_from: assignment.available_from || 'NULL',
+            available_to: assignment.available_to || 'NULL',
+            today: today
+          });
         }
       });
       
       console.log('Permanent Assignments Map:');
       permanentAssignmentsMap.forEach((userId, bayId) => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
+      });
+      
+      console.log('Temporarily available bays:');
+      temporarilyAvailableBays.forEach((userId, bayId) => {
+        console.log(`Bay ${bayId} temporarily available from user: ${userId}`);
       });
       
       if (bay1) {
@@ -157,8 +168,6 @@ const Bays = () => {
           inActiveDailyClaimsMap: activeDailyClaimsMap.has(bay2.bay_id)
         });
       }
-      
-      console.log('Temporarily available bays:', Array.from(temporarilyAvailableBays.entries()));
       
       if (!isMountedRef.current) return;
       
@@ -202,22 +211,9 @@ const Bays = () => {
           console.log("Bay 2 database status:", bay.status);
         }
         
-        if (baseBay.status === 'Maintenance' || baseBay.status === 'Reserved') {
-          if (isBay1) console.log(`Bay 1 is in ${baseBay.status} status, keeping it that way`);
-          if (isBay2) console.log(`Bay 2 is in ${baseBay.status} status, keeping it that way`);
-          
-          if (baseBay.status === 'Reserved') {
-            const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
-            const assignedToUser = assignedToUserId === user?.user_id;
-            
-            return {
-              ...baseBay,
-              reserved_by_you: assignedToUser,
-              reserved_by: assignedToUserId,
-              is_permanent: permanentAssignmentsMap.has(bay.bay_id)
-            };
-          }
-          
+        if (baseBay.status === 'Maintenance') {
+          if (isBay1) console.log("Bay 1 is in Maintenance status, keeping it that way");
+          if (isBay2) console.log("Bay 2 is in Maintenance status, keeping it that way");
           return baseBay;
         }
         
@@ -276,6 +272,16 @@ const Bays = () => {
         
         if (isBay1) console.log(`Using Bay 1's database status: ${baseBay.status}`);
         if (isBay2) console.log(`Using Bay 2's database status: ${baseBay.status}`);
+        
+        if (bay.status === 'Reserved') {
+          if (isBay1) console.log("Bay 1 was Reserved in the database but no active reservation found - RESETTING to AVAILABLE");
+          if (isBay2) console.log("Bay 2 was Reserved in the database but no active reservation found - RESETTING to AVAILABLE");
+          return {
+            ...baseBay,
+            status: 'Available' as Bay['status']
+          };
+        }
+        
         return baseBay;
       });
       
