@@ -1,8 +1,8 @@
-
-import { useLocation, Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Home, ArrowLeft } from "lucide-react";
+import { getBasename, isLovableEnvironment } from "@/utils/routing";
 
 const NotFound = () => {
   const location = useLocation();
@@ -23,13 +23,10 @@ const NotFound = () => {
     );
     
     // Determine if we're in a preview environment
-    const isPreviewEnvironment = window.location.hostname.includes('lovable.app') || 
-      window.location.hostname.includes('lovableproject.com');
+    const isPreviewEnvironment = isLovableEnvironment();
     
-    // Create appropriate home path based on environment
-    const basename = isPreviewEnvironment 
-      ? `/${window.location.pathname.split('/')[1] || ''}`
-      : '/';
+    // Get the correct basename
+    const basename = getBasename();
     
     // Set detailed diagnostic information
     setAppInfo({
@@ -62,10 +59,11 @@ const NotFound = () => {
   };
   
   const goHome = () => {
-    // For preview environments, we need to use the full URL to navigate to the root
+    const basename = getBasename();
+    // For preview environments, build the correct root URL
     if (appInfo.isPreview) {
-      const rootUrl = `${window.location.origin}/${window.location.pathname.split('/')[1] || ''}`;
-      console.log(`🏠 Navigating to home: ${rootUrl}`);
+      const rootUrl = `${window.location.origin}${basename}/login`;
+      console.log(`🏠 Navigating to home/login: ${rootUrl}`);
       window.location.href = rootUrl;
     } else {
       console.log('🏠 Navigating to home: /');

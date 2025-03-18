@@ -26,12 +26,15 @@ export const getBasename = (): string => {
     // For preview URLs, extract the app name from the hostname
     // e.g., "preview--app-garden-fusion.lovable.app" -> "app-garden-fusion"
     const hostname = window.location.hostname;
-    const appNameMatch = hostname.match(/preview--(.*?)\.lovable\.app/);
     
-    if (appNameMatch && appNameMatch[1]) {
-      const basename = `/${appNameMatch[1]}`;
-      console.log(`✅ Using basename: ${basename} from preview URL`);
-      return basename;
+    if (hostname.includes('preview--')) {
+      const appNameMatch = hostname.match(/preview--(.*?)\.lovable\.app/);
+      
+      if (appNameMatch && appNameMatch[1]) {
+        const basename = `/${appNameMatch[1]}`;
+        console.log(`✅ Using basename: ${basename} from preview URL`);
+        return basename;
+      }
     }
     
     // Extract from pathname as fallback
@@ -78,23 +81,42 @@ export const correctRoutePath = (currentPath: string): string | null => {
   // Get the basename for the environment
   const basename = getBasename();
   
+  console.log('🛠️ correctRoutePath checking:', { 
+    currentPath, 
+    basename,
+    isLovableEnv: isLovableEnvironment()
+  });
+  
   // Get the path without the basename
   let relativePath = currentPath;
   if (basename !== '/' && currentPath.startsWith(basename)) {
     relativePath = currentPath.slice(basename.length);
   }
   
+  console.log('🔍 Processing relative path:', relativePath);
+  
   // Check for common routing issues
-  if (relativePath.includes('bays/login')) {
+  if (relativePath === '/bays/login' || relativePath === 'bays/login') {
+    console.log('🔄 Correcting bays/login route to /login');
     return `${basename}/login`;
   }
   
-  if (relativePath.includes('bays/my-bay') && !relativePath.endsWith('/my-bay')) {
+  if ((relativePath.includes('/bays/my-bay') || relativePath.includes('bays/my-bay')) && 
+      !relativePath.endsWith('/my-bay')) {
+    console.log('🔄 Correcting nested my-bay route');
     return `${basename}/my-bay`;
   }
   
-  if (relativePath.includes('bays/admin') && !relativePath.endsWith('/admin')) {
+  if ((relativePath.includes('/bays/admin') || relativePath.includes('bays/admin')) && 
+      !relativePath.endsWith('/admin')) {
+    console.log('🔄 Correcting nested admin route');
     return `${basename}/admin`;
+  }
+  
+  // For root path in preview environment
+  if (isLovableEnvironment() && (currentPath === '/' || currentPath === '')) {
+    console.log('🔄 Correcting empty root path in preview environment');
+    return basename;
   }
   
   // No correction needed

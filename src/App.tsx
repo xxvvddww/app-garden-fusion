@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,7 +16,7 @@ import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { getBasename, correctRoutePath } from "@/utils/routing";
+import { getBasename, correctRoutePath, isLovableEnvironment } from "@/utils/routing";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient({
@@ -74,6 +75,18 @@ const RouteCorrector = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   
   useEffect(() => {
+    console.log('📍 RouteCorrector checking path:', location.pathname);
+    
+    // Handle the special case for the root path in preview environments
+    if (isLovableEnvironment() && (location.pathname === '/' || location.pathname === '')) {
+      const basename = getBasename();
+      if (basename !== '/') {
+        console.log(`🔄 Redirecting from root to ${basename}/login in preview environment`);
+        navigate(`${basename}/login`, { replace: true });
+        return;
+      }
+    }
+    
     const correctPath = correctRoutePath(location.pathname);
     if (correctPath) {
       console.log(`🔄 Correcting route from ${location.pathname} to ${correctPath}`);
@@ -109,6 +122,14 @@ const App = () => {
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString()
     });
+    
+    // Additional check for preview environment root path
+    if (isLovableEnvironment() && (window.location.pathname === '/' || window.location.pathname === '')) {
+      console.log('🔍 Detected root path in preview environment');
+      if (basename !== '/') {
+        console.log(`⚠️ Root path should redirect to ${basename}/login`);
+      }
+    }
     
     const handleError = (event: ErrorEvent) => {
       console.error('🔥 Unhandled error:', event.error);
