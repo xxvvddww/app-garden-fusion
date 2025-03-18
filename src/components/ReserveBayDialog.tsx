@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -89,10 +90,10 @@ const ReserveBayDialog = ({
       if (claimsCheckError) throw claimsCheckError;
       
       // If bay is now reserved, show an error
-      if (latestBayData.status === 'Maintenance' || recentClaims.length > 0) {
+      if (latestBayData.status === 'Maintenance' || latestBayData.status === 'Reserved' || recentClaims.length > 0) {
         toast({
           title: 'Bay No Longer Available',
-          description: 'This bay has just been reserved by someone else or marked as under maintenance. Please choose another bay.',
+          description: `This bay has been ${latestBayData.status === 'Maintenance' ? 'marked as under maintenance' : 'reserved by someone else'}. Please choose another bay.`,
           variant: 'destructive',
         });
         onOpenChange(false);
@@ -128,6 +129,16 @@ const ReserveBayDialog = ({
           });
           
         if (error) throw error;
+        
+        // Update the bay status to Reserved immediately after assigning permanently
+        const { error: bayUpdateError } = await supabase
+          .from('bays')
+          .update({ status: 'Reserved' })
+          .eq('bay_id', bay.bay_id);
+          
+        if (bayUpdateError) {
+          console.error('Error updating bay status:', bayUpdateError);
+        }
         
         toast({
           title: 'Bay Assigned',
@@ -315,6 +326,9 @@ const ReserveBayDialog = ({
 
   if (!bay) return null;
   
+  // Show reserved status for all bays marked as reserved in the database, regardless of user role
+  const bayIsReserved = bay.status === 'Reserved' || bay.reserved_by_you;
+  
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-[#0F1624] text-white border-[#1E2A45]">
@@ -326,7 +340,7 @@ const ReserveBayDialog = ({
         </DialogHeader>
         
         <div className="space-y-4 py-4">
-          {bay.status === 'Available' ? (
+          {!bayIsReserved && bay.status === 'Available' ? (
             <>
               <div className="space-y-2">
                 <p className="text-sm font-medium mb-3">Reservation Options:</p>
