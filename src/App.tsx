@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -85,6 +84,14 @@ const getBasename = () => {
   // Extract the basename from the current URL
   const urlPath = window.location.pathname;
   
+  // Add detailed logging for basename determination
+  console.log('📍 Determining basename with:', {
+    urlPath,
+    hostname: window.location.hostname,
+    isPreviewEnvironment: window.location.hostname.includes('lovable.app') || 
+      window.location.hostname.includes('lovableproject.com')
+  });
+  
   // Check if we're in a preview environment (lovable.app or similar domains)
   if (window.location.hostname.includes('lovable.app') || 
       window.location.hostname.includes('lovableproject.com')) {
@@ -92,77 +99,91 @@ const getBasename = () => {
     // For Lovable preview environments, use the correct base path
     // Extract the first part of the path if it exists
     const pathSegments = urlPath.split('/').filter(Boolean);
+    console.log('🔍 Path segments after filtering:', pathSegments);
+    
     if (pathSegments.length > 0) {
-      return `/${pathSegments[0]}`;
+      const basename = `/${pathSegments[0]}`;
+      console.log('✅ Using basename:', basename);
+      return basename;
     }
+    
+    console.log('⚠️ No path segments found, using default basename');
   }
   
   // Default to no basename for local development
+  console.log('✅ Using default basename: /');
   return '/';
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <ThemeContextProvider>
-        <TooltipProvider>
-          <AuthProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter basename={getBasename()}>
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <DefaultRedirect />
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/bays"
-                  element={
-                    <ProtectedRoute>
-                      <MainLayout>
-                        <Bays />
-                      </MainLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/my-bay"
-                  element={
-                    <ProtectedRoute>
-                      <MainLayout>
-                        <MyBay />
-                      </MainLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute requiredRole="Admin">
-                      <MainLayout>
-                        <Admin />
-                      </MainLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </AuthProvider>
-        </TooltipProvider>
-      </ThemeContextProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  const basename = getBasename();
+  console.log('🧭 Router initialized with basename:', basename);
+  
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <ThemeContextProvider>
+          <TooltipProvider>
+            <AuthProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter basename={basename}>
+                {/* Log when router is mounted */}
+                {console.log('🚀 BrowserRouter mounted with basename:', basename)}
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <DefaultRedirect />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/bays"
+                    element={
+                      <ProtectedRoute>
+                        <MainLayout>
+                          <Bays />
+                        </MainLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/my-bay"
+                    element={
+                      <ProtectedRoute>
+                        <MainLayout>
+                          <MyBay />
+                        </MainLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute requiredRole="Admin">
+                        <MainLayout>
+                          <Admin />
+                        </MainLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </AuthProvider>
+          </TooltipProvider>
+        </ThemeContextProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
