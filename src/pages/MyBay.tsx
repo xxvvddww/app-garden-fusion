@@ -84,10 +84,18 @@ const MyBay = () => {
     const today = format(new Date(), 'yyyy-MM-dd');
     const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
     
+    // Log the assignments for debugging
+    console.log("MyBay - Current assignments:", assignments);
+    console.log("MyBay - Current day:", currentDayOfWeek);
+    
     assignments.forEach(assignment => {
+      console.log(`MyBay - Processing assignment for bay ${assignment.bay.bay_number}, day: ${assignment.day_of_week}`);
+      
       if ((assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days')) {
         const isTemporarilyAvailable = assignment.available_from && assignment.available_to && 
                            today >= assignment.available_from && today <= assignment.available_to;
+        
+        console.log(`MyBay - Bay ${assignment.bay.bay_number} temporary availability:`, isTemporarilyAvailable);
         
         if (!isTemporarilyAvailable) {
           if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
@@ -97,12 +105,18 @@ const MyBay = () => {
                       claim.status === 'Cancelled'
             );
             
+            console.log(`MyBay - Bay ${assignment.bay.bay_number} cancelled claim:`, hasCancelledClaim);
+            
             if (!hasCancelledClaim) {
+              // Preserve the original status from the database for the bay
               uniqueBaysMap.set(assignment.bay.bay_id, {
                 ...assignment.bay,
-                status: 'Reserved' as Bay['status'],
+                status: assignment.bay.status === 'Available' ? 'Reserved' as Bay['status'] : assignment.bay.status,
                 reserved_by_you: true
               });
+              
+              console.log(`MyBay - Adding bay ${assignment.bay.bay_number} to myBays with status:`, 
+                uniqueBaysMap.get(assignment.bay.bay_id)?.status);
             }
           }
         } else {
@@ -113,6 +127,8 @@ const MyBay = () => {
     });
     
     dailyClaims.forEach(claim => {
+      console.log(`MyBay - Processing daily claim for bay ID: ${claim.bay_id}`);
+      
       if (claim.status === 'Active') {
         const matchingBay = assignments.find(a => a.bay.bay_id === claim.bay_id)?.bay;
         if (matchingBay && !uniqueBaysMap.has(matchingBay.bay_id)) {
@@ -121,11 +137,15 @@ const MyBay = () => {
             status: 'Reserved' as Bay['status'],
             reserved_by_you: true
           });
+          
+          console.log(`MyBay - Adding bay from daily claim with status: Reserved`);
         }
       }
     });
     
-    return Array.from(uniqueBaysMap.values());
+    const result = Array.from(uniqueBaysMap.values());
+    console.log("MyBay - Final bays list:", result);
+    return result;
   };
 
   const handleBayClick = (bay: Bay) => {

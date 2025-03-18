@@ -202,9 +202,22 @@ const Bays = () => {
           console.log("Bay 2 database status:", bay.status);
         }
         
-        if (baseBay.status === 'Maintenance') {
-          if (isBay1) console.log("Bay 1 is in maintenance status, keeping it that way");
-          if (isBay2) console.log("Bay 2 is in maintenance status, keeping it that way");
+        if (baseBay.status === 'Maintenance' || baseBay.status === 'Reserved') {
+          if (isBay1) console.log(`Bay 1 is in ${baseBay.status} status, keeping it that way`);
+          if (isBay2) console.log(`Bay 2 is in ${baseBay.status} status, keeping it that way`);
+          
+          if (baseBay.status === 'Reserved') {
+            const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
+            const assignedToUser = assignedToUserId === user?.user_id;
+            
+            return {
+              ...baseBay,
+              reserved_by_you: assignedToUser,
+              reserved_by: assignedToUserId,
+              is_permanent: permanentAssignmentsMap.has(bay.bay_id)
+            };
+          }
+          
           return baseBay;
         }
         
@@ -245,22 +258,20 @@ const Bays = () => {
           };
         }
         
-        if (baseBay.status === 'Reserved') {
-          if (isBay1) console.log("Bay 1 is Reserved in database");
-          if (isBay2) console.log("Bay 2 is Reserved in database");
+        if (permanentAssignmentsMap.has(bay.bay_id)) {
+          if (isBay1) console.log("Bay 1 has a permanent assignment - marking as RESERVED");
+          if (isBay2) console.log("Bay 2 has a permanent assignment - marking as RESERVED");
           
-          if (permanentAssignmentsMap.has(bay.bay_id)) {
-            const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
-            const assignedToUser = assignedToUserId === user?.user_id;
-            
-            return {
-              ...baseBay,
-              reserved_by_you: assignedToUser,
-              reserved_by: assignedToUserId,
-              is_permanent: true
-            };
-          }
-          return baseBay;
+          const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
+          const assignedToUser = assignedToUserId === user?.user_id;
+          
+          return {
+            ...baseBay,
+            status: 'Reserved' as Bay['status'],
+            reserved_by_you: assignedToUser,
+            reserved_by: assignedToUserId,
+            is_permanent: true
+          };
         }
         
         if (isBay1) console.log(`Using Bay 1's database status: ${baseBay.status}`);
