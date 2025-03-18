@@ -1,9 +1,11 @@
+
 import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { supabase, refreshSession } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -11,70 +13,102 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
-  const { user, session, loading, refreshUserData } = useAuth();
+  const { user, session, loading: authLoading, refreshUserData } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
   // Track whether initial auth check has completed
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [loading, setLoading] = useState(true);
   const isMountedRef = useRef(true);
+  const timeoutRef = useRef<number | null>(null);
 
+  // Cleanup function to prevent memory leaks
   useEffect(() => {
     isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Monitor auth state and set hasCheckedAuth once initial loading is complete
+  useEffect(() => {
+    if (!isMountedRef.current) return;
     
     console.log("ProtectedRoute - auth state:", { 
       hasUser: !!user, 
       hasSession: !!session, 
-      loading, 
+      authLoading,
+      loading,
       currentPath: location.pathname,
       hasCheckedAuth,
       refreshAttempts
     });
 
     // Set hasCheckedAuth to true once loading is complete
-    if (!loading && !hasCheckedAuth && isMountedRef.current) {
+    if (!authLoading && !hasCheckedAuth && isMountedRef.current) {
       setHasCheckedAuth(true);
     }
     
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [user, session, loading, location, hasCheckedAuth, refreshAttempts]);
+    // Update loading state based on auth loading and refresh state
+    if (isMountedRef.current) {
+      setLoading(authLoading || isRefreshing);
+    }
+  }, [user, session, authLoading, location, hasCheckedAuth, refreshAttempts, isRefreshing]);
 
-  // Force a session refresh on component mount
+  // Force a session refresh on component mount if needed
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     const trySessionRefresh = async () => {
       if (!isMountedRef.current) return;
       
-      if (!user && !loading && refreshAttempts < 3) {
+      if (!user && !authLoading && refreshAttempts < 3) {
         setIsRefreshing(true);
         try {
           console.log(`Attempting session refresh (attempt ${refreshAttempts + 1})`);
           await refreshSession();
+          
           // After refreshing, update user data in Auth context
           if (refreshUserData && isMountedRef.current) {
             await refreshUserData();
+            
+            // Add a small delay to ensure everything is updated
+            timeoutRef.current = window.setTimeout(() => {
+              if (isMountedRef.current) {
+                setIsRefreshing(false);
+              }
+            }, 500);
+          } else if (isMountedRef.current) {
+            setIsRefreshing(false);
           }
         } catch (error) {
           console.error("Error during forced session refresh:", error);
-        } finally {
           if (isMountedRef.current) {
             setIsRefreshing(false);
+          }
+        } finally {
+          if (isMountedRef.current) {
             setRefreshAttempts(prev => prev + 1);
           }
         }
+      } else if (isMountedRef.current && user) {
+        // If we have a user, we don't need to refresh
+        setIsRefreshing(false);
       }
     };
     
-    if (hasCheckedAuth && !user && !loading) {
+    if (hasCheckedAuth && !user && !authLoading) {
       trySessionRefresh();
     }
-    
-    return () => {
-      // Cleanup
-    };
-  }, [hasCheckedAuth, user, loading, refreshAttempts, refreshUserData]);
+  }, [hasCheckedAuth, user, authLoading, refreshAttempts, refreshUserData]);
 
   // When returning from background on mobile, this helps re-validate auth status
   useEffect(() => {
@@ -84,22 +118,52 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       if (document.visibilityState === 'visible') {
         console.log('App visible, rechecking auth state in ProtectedRoute');
         
-        // First check if we already have a session
-        const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          console.log("Session found on visibility change:", { 
-            userId: data.session.user.id,
-            hasAccessToken: !!data.session.access_token 
-          });
+        if (isMountedRef.current) {
+          setLoading(true);
+        }
+        
+        try {
+          // First check if we already have a session
+          const { data } = await supabase.auth.getSession();
           
-          // If we have a session but no user data, force a refresh
-          if (!user && refreshUserData && isMountedRef.current) {
-            console.log("We have a session but no user data, refreshing user data");
-            await refreshUserData();
+          if (!isMountedRef.current) return;
+          
+          if (data.session) {
+            console.log("Session found on visibility change:", { 
+              userId: data.session.user.id,
+              hasAccessToken: !!data.session.access_token 
+            });
+            
+            // If we have a session but no user data, force a refresh
+            if (!user && refreshUserData && isMountedRef.current) {
+              console.log("We have a session but no user data, refreshing user data");
+              await refreshUserData();
+              
+              // Add a small delay to ensure everything is updated before continuing
+              timeoutRef.current = window.setTimeout(() => {
+                if (isMountedRef.current) {
+                  setLoading(false);
+                }
+              }, 500);
+            } else if (isMountedRef.current) {
+              setLoading(false);
+            }
+          } else if (!user && isMountedRef.current) {
+            console.log("No session found on visibility change, redirecting to login");
+            navigate('/login', { replace: true });
+          } else if (isMountedRef.current) {
+            setLoading(false);
           }
-        } else if (!user && isMountedRef.current) {
-          console.log("No session found on visibility change, redirecting to login");
-          navigate('/login', { replace: true });
+        } catch (error) {
+          console.error("Error checking auth on visibility change:", error);
+          if (isMountedRef.current) {
+            toast({
+              title: "Authentication Error",
+              description: "There was a problem verifying your session. Please refresh the page.",
+              variant: "destructive"
+            });
+            setLoading(false);
+          }
         }
       }
     };
@@ -108,10 +172,10 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session, user, navigate, refreshUserData]);
+  }, [session, user, navigate, refreshUserData, toast]);
 
   // Show enhanced loading state when refreshing session
-  if (loading || isRefreshing) {
+  if (loading) {
     return (
       <div className="container mx-auto p-4 space-y-4">
         <div className="flex items-center space-x-2 mb-4">

@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
@@ -11,6 +12,7 @@ import MakeBayAvailableDialog from '@/components/MakeBayAvailableDialog';
 import BayAssignmentsTable from '@/components/BayAssignmentsTable';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSupabaseSubscription } from '@/hooks/useSupabaseSubscription';
 
 const Bays = () => {
   const [bays, setBays] = useState<Bay[]>([]);
@@ -26,97 +28,10 @@ const Bays = () => {
   const isAdmin = user && user.role === 'Admin';
   
   const isMountedRef = useRef(true);
-  const channelsRef = useRef<any[]>([]);
+  const timeoutRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    fetchBays();
-
-    const setupRealtimeSubscriptions = () => {
-      if (channelsRef.current.length > 0) {
-        channelsRef.current.forEach(channel => {
-          supabase.removeChannel(channel);
-        });
-        channelsRef.current = [];
-      }
-      
-      const timestamp = Date.now();
-      
-      const dailyClaimsChannel = supabase
-        .channel(`daily-claims-changes-${timestamp}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-            schema: 'public',
-            table: 'daily_claims'
-          },
-          () => {
-            console.log('Daily claims changed, refreshing bays...');
-            if (isMountedRef.current) {
-              fetchBays();
-            }
-          }
-        )
-        .subscribe();
-      channelsRef.current.push(dailyClaimsChannel);
-
-      const permanentAssignmentsChannel = supabase
-        .channel(`permanent-assignments-changes-${timestamp}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-            schema: 'public',
-            table: 'permanent_assignments'
-          },
-          () => {
-            console.log('Permanent assignments changed, refreshing bays...');
-            if (isMountedRef.current) {
-              fetchBays();
-            }
-          }
-        )
-        .subscribe();
-      channelsRef.current.push(permanentAssignmentsChannel);
-
-      const baysChannel = supabase
-        .channel(`bays-changes-${timestamp}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-            schema: 'public',
-            table: 'bays'
-          },
-          () => {
-            console.log('Bays changed, refreshing bays...');
-            if (isMountedRef.current) {
-              fetchBays();
-            }
-          }
-        )
-        .subscribe();
-      channelsRef.current.push(baysChannel);
-
-      return channelsRef.current;
-    };
-
-    setupRealtimeSubscriptions();
-
-    return () => {
-      console.log('Cleaning up Bays component and all Supabase channels...');
-      
-      isMountedRef.current = false;
-      
-      channelsRef.current.forEach(channel => {
-        supabase.removeChannel(channel);
-      });
-      channelsRef.current = [];
-    };
-  }, []);
-
-  const fetchBays = async () => {
+  // Wrap fetchBays in useCallback to prevent recreating the function on each render
+  const fetchBays = useCallback(async () => {
     if (!isMountedRef.current) return;
     
     try {
@@ -136,12 +51,16 @@ const Bays = () => {
         
       if (claimsError) throw claimsError;
       
+      if (!isMountedRef.current) return;
+      
       const { data: permanentAssignmentsData, error: assignmentsError } = await supabase
         .from('permanent_assignments')
         .select('bay_id, user_id, day_of_week, available_from, available_to')
         .or(`day_of_week.eq.${currentDayOfWeek},day_of_week.eq.All Days`);
         
       if (assignmentsError) throw assignmentsError;
+      
+      if (!isMountedRef.current) return;
       
       console.log('Today:', today);
       console.log('Current day of week:', currentDayOfWeek);
@@ -192,6 +111,8 @@ const Bays = () => {
       
       console.log('Temporarily available bays:', Array.from(temporarilyAvailableBays));
       
+      if (!isMountedRef.current) return;
+      
       const userIds = new Set<string>();
       dailyClaimsData.forEach(claim => userIds.add(claim.user_id));
       permanentAssignmentsData.forEach(assignment => userIds.add(assignment.user_id));
@@ -213,6 +134,8 @@ const Bays = () => {
           setUserNames(namesMap);
         }
       }
+      
+      if (!isMountedRef.current) return;
       
       const updatedBays = baysData.map(bay => {
         const baseBay = castToBay(bay);
@@ -275,6 +198,18 @@ const Bays = () => {
       
       if (isMountedRef.current) {
         setBays(updatedBays as Bay[]);
+        
+        // Add a short delay before turning off loading state
+        // This ensures data is properly rendered before showing the UI
+        if (timeoutRef.current) {
+          window.clearTimeout(timeoutRef.current);
+        }
+        
+        timeoutRef.current = window.setTimeout(() => {
+          if (isMountedRef.current) {
+            setLoading(false);
+          }
+        }, 300);
       }
     } catch (error) {
       console.error('Error fetching bays:', error);
@@ -284,15 +219,40 @@ const Bays = () => {
           description: 'Failed to load bays data',
           variant: 'destructive',
         });
-      }
-    } finally {
-      if (isMountedRef.current) {
         setLoading(false);
       }
     }
-  };
+  }, [today, currentDayOfWeek, user, toast]);
+  
+  // Use our custom hook for Supabase subscriptions
+  useSupabaseSubscription(
+    [
+      { table: 'daily_claims' },
+      { table: 'permanent_assignments' },
+      { table: 'bays' }
+    ],
+    fetchBays
+  );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    // Initial fetch when component mounts
+    fetchBays();
+    
+    // Cleanup function
+    return () => {
+      console.log('Cleaning up Bays component');
+      isMountedRef.current = false;
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [fetchBays]);
 
   const handleBayClick = (bay: Bay) => {
+    if (!isMountedRef.current) return;
+    
     console.log('Bay clicked:', bay);
     setSelectedBay(bay);
     

@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, RefreshCw } from 'lucide-react';
+import { useSupabaseSubscription } from '@/hooks/useSupabaseSubscription';
 
 interface BayReservation {
   bay_id: string;
@@ -26,8 +27,11 @@ export const BayAssignmentsTable = () => {
   const { toast } = useToast();
   const today = format(new Date(), 'yyyy-MM-dd');
   const currentDayOfWeek = format(new Date(), 'EEEE');
-
-  const fetchAssignments = async () => {
+  const isMountedRef = useRef(true);
+  
+  const fetchAssignments = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
     try {
       setLoading(true);
       
@@ -67,6 +71,8 @@ export const BayAssignmentsTable = () => {
         
       if (dailyError) throw dailyError;
       
+      if (!isMountedRef.current) return;
+      
       console.log('Fetched daily claims for table:', dailyData);
       console.log('Fetched permanent assignments for table:', permanentData);
       
@@ -89,6 +95,8 @@ export const BayAssignmentsTable = () => {
           userNames[u.user_id] = u.name;
         });
       }
+      
+      if (!isMountedRef.current) return;
       
       // Create map of daily claims by bay_id
       const dailyClaimsByBay = new Map<string, any[]>();
@@ -178,92 +186,53 @@ export const BayAssignmentsTable = () => {
       // Sort by bay number
       allReservations.sort((a, b) => a.bay_number - b.bay_number);
       
-      setReservations(allReservations);
+      if (isMountedRef.current) {
+        setReservations(allReservations);
+      }
     } catch (error) {
       console.error('Error fetching bay assignments:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load bay assignments',
-        variant: 'destructive',
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load bay assignments',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  };
+  }, [today, currentDayOfWeek, toast]);
+  
+  // Use our custom hook for Supabase subscriptions
+  useSupabaseSubscription(
+    [
+      { table: 'daily_claims' },
+      { table: 'permanent_assignments' },
+      { table: 'bays' }
+    ],
+    fetchAssignments
+  );
   
   const handleRefresh = () => {
-    setRefreshing(true);
-    fetchAssignments();
+    if (isMountedRef.current) {
+      setRefreshing(true);
+      fetchAssignments();
+    }
   };
 
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
     
-    // Immediately fetch assignments when component mounts
-    const initialFetch = async () => {
-      await fetchAssignments();
-    };
+    // Initial fetch
+    fetchAssignments();
     
-    initialFetch();
-    
-    // Setup subscription for real-time updates with proper cleanup
-    const channels = [];
-    
-    // Only set up subscriptions if component is still mounted
-    if (isMounted) {
-      const dailyClaimsChannel = supabase
-        .channel('daily-claims-changes-for-table-' + Date.now())
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'daily_claims'
-          },
-          () => {
-            if (isMounted) {
-              console.log('Real-time update from daily_claims table');
-              fetchAssignments();
-            }
-          }
-        )
-        .subscribe();
-      
-      channels.push(dailyClaimsChannel);
-        
-      const permanentAssignmentsChannel = supabase
-        .channel('permanent-assignments-changes-for-table-' + Date.now())
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'permanent_assignments'
-          },
-          () => {
-            if (isMounted) {
-              console.log('Real-time update from permanent_assignments table');
-              fetchAssignments();
-            }
-          }
-        )
-        .subscribe();
-      
-      channels.push(permanentAssignmentsChannel);
-    }
-      
-    // Clean up function to prevent updates on unmounted component
     return () => {
-      console.log('Cleaning up BayAssignmentsTable subscriptions');
-      isMounted = false;
-      
-      // Properly remove all channels
-      channels.forEach(channel => {
-        supabase.removeChannel(channel);
-      });
+      isMountedRef.current = false;
     };
-  }, []);
+  }, [fetchAssignments]);
 
   if (loading) {
     return (
