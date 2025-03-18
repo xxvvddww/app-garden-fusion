@@ -16,7 +16,6 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-// Configure QueryClient with appropriate settings
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -68,23 +67,17 @@ const DefaultRedirect = () => {
   return <Navigate to="/bays" replace />;
 };
 
-// Patch window.open to ensure it works properly
 if (typeof window !== 'undefined') {
   const originalOpen = window.open;
   window.open = function(url, target, features) {
-    // Log external link opening for debugging
     console.log("Opening external link:", url);
     return originalOpen.call(this, url, target, features);
   };
 }
 
-// Determine the base URL for the router
-// This helps the app work in both development and production/preview environments
 const getBasename = () => {
-  // Extract the basename from the current URL
   const urlPath = window.location.pathname;
   
-  // Add detailed logging for basename determination
   console.log('📍 Determining basename with:', {
     urlPath,
     hostname: window.location.hostname,
@@ -92,12 +85,9 @@ const getBasename = () => {
       window.location.hostname.includes('lovableproject.com')
   });
   
-  // Check if we're in a preview environment (lovable.app or similar domains)
   if (window.location.hostname.includes('lovable.app') || 
       window.location.hostname.includes('lovableproject.com')) {
     
-    // For Lovable preview environments, use the correct base path
-    // Extract the first part of the path if it exists
     const pathSegments = urlPath.split('/').filter(Boolean);
     console.log('🔍 Path segments after filtering:', pathSegments);
     
@@ -110,7 +100,6 @@ const getBasename = () => {
     console.log('⚠️ No path segments found, using default basename');
   }
   
-  // Default to no basename for local development
   console.log('✅ Using default basename: /');
   return '/';
 };
@@ -118,6 +107,10 @@ const getBasename = () => {
 const App = () => {
   const basename = getBasename();
   console.log('🧭 Router initialized with basename:', basename);
+  
+  useEffect(() => {
+    console.log('🚀 BrowserRouter mounted with basename:', basename);
+  }, [basename]);
   
   return (
     <QueryClientProvider client={queryClient}>
@@ -128,8 +121,6 @@ const App = () => {
               <Toaster />
               <Sonner />
               <BrowserRouter basename={basename}>
-                {/* Log when router is mounted */}
-                {console.log('🚀 BrowserRouter mounted with basename:', basename)}
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   
