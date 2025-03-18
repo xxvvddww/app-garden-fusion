@@ -23,13 +23,24 @@ export const getBasename = (): string => {
 
   // If we're in a Lovable environment (preview or production)
   if (isLovableEnvironment()) {
-    // Extract the first segment of the URL path (e.g., 'app-garden-fusion' from '/app-garden-fusion/...')
+    // For preview URLs, extract the app name from the hostname
+    // e.g., "preview--app-garden-fusion.lovable.app" -> "app-garden-fusion"
+    const hostname = window.location.hostname;
+    const appNameMatch = hostname.match(/preview--(.*?)\.lovable\.app/);
+    
+    if (appNameMatch && appNameMatch[1]) {
+      const basename = `/${appNameMatch[1]}`;
+      console.log(`✅ Using basename: ${basename} from preview URL`);
+      return basename;
+    }
+    
+    // Extract from pathname as fallback
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
     console.log('📊 Path segments:', pathSegments);
     
     if (pathSegments.length > 0) {
       const basename = `/${pathSegments[0]}`;
-      console.log(`✅ Using basename: ${basename} for Lovable environment`);
+      console.log(`✅ Using basename: ${basename} from pathname`);
       return basename;
     }
     
@@ -47,13 +58,15 @@ export const getBasename = (): string => {
  */
 export const buildNavigationUrl = (path: string): string => {
   const baseUrl = window.location.origin;
+  const basename = getBasename();
+  
+  // Ensure we don't duplicate slashes
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
   
   if (isLovableEnvironment()) {
-    const projectSegment = window.location.pathname.split('/')[1] || '';
-    if (projectSegment) {
-      return `${baseUrl}/${projectSegment}${path.startsWith('/') ? path : `/${path}`}`;
-    }
+    return `${baseUrl}${basename}${cleanPath}`;
   }
   
-  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  return `${baseUrl}${cleanPath}`;
 };
+
