@@ -1,4 +1,3 @@
-
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@/types';
@@ -18,7 +17,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'parking-app-user-data';
 const LAST_AUTH_CHECK_KEY = 'parking-app-last-auth-check';
-const SESSION_RECOVERY_ATTEMPTS_KEY = 'parking-app-recovery-attempts';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -64,8 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(existingUsers as User);
         setLoading(false);
         localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
-        // Reset recovery attempts on successful profile fetch
-        localStorage.removeItem(SESSION_RECOVERY_ATTEMPTS_KEY);
         return;
       }
       
@@ -104,8 +100,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(minimumUserData));
         localStorage.setItem(LAST_AUTH_CHECK_KEY, Date.now().toString());
-        // Reset recovery attempts on successful profile creation
-        localStorage.removeItem(SESSION_RECOVERY_ATTEMPTS_KEY);
         return;
       }
       
@@ -122,8 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       try {
         setLoading(true);
-        
-        // Get the current session from Supabase
         const { data: sessionData } = await supabase.auth.getSession();
         console.log("Initial session fetched:", sessionData.session ? {
           id: sessionData.session.user.id,
@@ -136,46 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setSession(sessionData.session);
         
-        // If there's an active session, fetch the user profile
         if (sessionData.session) {
           await fetchUserProfile(sessionData.session.user.id);
         } else {
-          // If no active session but we have stored user data, attempt to recover
-          const storedUser = localStorage.getItem(STORAGE_KEY);
-          
-          if (storedUser) {
-            // Increment recovery attempts counter
-            const currentAttempts = Number(localStorage.getItem(SESSION_RECOVERY_ATTEMPTS_KEY) || '0');
-            localStorage.setItem(SESSION_RECOVERY_ATTEMPTS_KEY, (currentAttempts + 1).toString());
-            
-            // Only try to recover if we haven't exceeded max attempts (5)
-            if (currentAttempts < 5) {
-              console.log("No active session but found stored user data, attempting to recover...");
-              try {
-                // Try to refresh the session
-                const { data, error } = await supabase.auth.refreshSession();
-                
-                if (data.session) {
-                  console.log("Session successfully recovered");
-                  setSession(data.session);
-                  await fetchUserProfile(data.session.user.id);
-                } else {
-                  console.log("Could not recover session:", error?.message);
-                  setLoading(false);
-                }
-              } catch (error) {
-                console.error("Error recovering session:", error);
-                setLoading(false);
-              }
-            } else {
-              console.log("Exceeded max recovery attempts, clearing stored user data");
-              localStorage.removeItem(STORAGE_KEY);
-              localStorage.removeItem(SESSION_RECOVERY_ATTEMPTS_KEY);
-              setLoading(false);
-            }
-          } else {
-            setLoading(false);
-          }
+          setLoading(false);
         }
         
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
@@ -198,7 +154,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem(LAST_AUTH_CHECK_KEY);
-            localStorage.removeItem(SESSION_RECOVERY_ATTEMPTS_KEY);
           }
         });
         
@@ -241,15 +196,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
               
               localStorage.setItem(LAST_AUTH_CHECK_KEY, now.toString());
-              // Reset recovery attempts on successful check
-              localStorage.removeItem(SESSION_RECOVERY_ATTEMPTS_KEY);
             } else if (session) {
               console.log('Session invalid on visibility change');
               setSession(null);
               setUser(null);
               setLoading(false);
-              localStorage.removeItem(STORAGE_KEY);
-              localStorage.removeItem(SESSION_RECOVERY_ATTEMPTS_KEY);
             } else {
               setLoading(false);
             }

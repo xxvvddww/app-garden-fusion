@@ -26,7 +26,6 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [loading, setLoading] = useState(true);
   const isMountedRef = useRef(true);
   const timeoutRef = useRef<number | null>(null);
-  const recoveryTimeoutRef = useRef<number | null>(null);
 
   // Cleanup function to prevent memory leaks
   useEffect(() => {
@@ -36,9 +35,6 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       isMountedRef.current = false;
       if (timeoutRef.current) {
         window.clearTimeout(timeoutRef.current);
-      }
-      if (recoveryTimeoutRef.current) {
-        window.clearTimeout(recoveryTimeoutRef.current);
       }
     };
   }, []);
@@ -59,12 +55,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
 
     // Set hasCheckedAuth to true once loading is complete
     if (!authLoading && !hasCheckedAuth && isMountedRef.current) {
-      // Give a short delay before marking auth as checked to allow for session recovery
-      recoveryTimeoutRef.current = window.setTimeout(() => {
-        if (isMountedRef.current) {
-          setHasCheckedAuth(true);
-        }
-      }, 1000);
+      setHasCheckedAuth(true);
     }
     
     // Update loading state based on auth loading and refresh state
@@ -95,7 +86,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
               if (isMountedRef.current) {
                 setIsRefreshing(false);
               }
-            }, 1000); // Increased delay to give more time for auth processing
+            }, 500);
           } else if (isMountedRef.current) {
             setIsRefreshing(false);
           }
@@ -154,20 +145,13 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
                 if (isMountedRef.current) {
                   setLoading(false);
                 }
-              }, 1000); // Increased delay
+              }, 500);
             } else if (isMountedRef.current) {
               setLoading(false);
             }
           } else if (!user && isMountedRef.current) {
-            // Don't immediately redirect - give more time for session recovery
-            timeoutRef.current = window.setTimeout(() => {
-              if (isMountedRef.current && !user) {
-                console.log("No session found after wait, redirecting to login");
-                navigate('/login', { replace: true });
-              }
-            }, 2000); // Increased delay before redirecting
-            
-            setLoading(false);
+            console.log("No session found on visibility change, redirecting to login");
+            navigate('/login', { replace: true });
           } else if (isMountedRef.current) {
             setLoading(false);
           }
@@ -223,34 +207,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   }
 
   // If after refresh attempts we still don't have a user, redirect to login
-  // But give more time before redirecting
   if (!session || !user) {
-    // Wait longer before redirecting on initial page load
-    if (refreshAttempts < 3) {
-      return (
-        <div className="container mx-auto p-4 space-y-6">
-          <div className="flex items-center space-x-2 mb-4">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <Skeleton className="h-8 w-64" />
-          </div>
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-64 w-full" />
-          
-          <div className="flex justify-center mt-8">
-            <Button 
-              variant="outline" 
-              onClick={handleManualRefresh} 
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh Page
-            </Button>
-          </div>
-        </div>
-      );
-    }
-    
     console.log("User not authenticated after refresh attempts, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
