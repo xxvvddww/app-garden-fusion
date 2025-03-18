@@ -42,6 +42,12 @@ const Bays = () => {
 
       if (baysError) throw baysError;
       
+      console.log("Fetched bays data:", baysData);
+      
+      // Identify Bay 2 for detailed logging
+      const bay2 = baysData.find(bay => bay.bay_number === 2);
+      console.log("Bay 2 raw data:", bay2);
+      
       const { data: dailyClaimsData, error: claimsError } = await supabase
         .from('daily_claims')
         .select('bay_id, user_id, status')
@@ -64,6 +70,12 @@ const Bays = () => {
       console.log('Current day of week:', currentDayOfWeek);
       console.log('Daily claims:', dailyClaimsData);
       console.log('Permanent assignments:', permanentAssignmentsData);
+      
+      // Find any permanent assignments for Bay 2
+      if (bay2) {
+        const bay2Assignments = permanentAssignmentsData.filter(assignment => assignment.bay_id === bay2.bay_id);
+        console.log("Bay 2 permanent assignments:", bay2Assignments);
+      }
       
       permanentAssignmentsData.forEach(assignment => {
         console.log(`Assignment for bay ${assignment.bay_id}: available_from=${assignment.available_from || 'NULL'}, available_to=${assignment.available_to || 'NULL'}`);
@@ -92,6 +104,20 @@ const Bays = () => {
       const temporarilyAvailableBays = new Map();
       
       permanentAssignmentsData.forEach(assignment => {
+        // Debug exact values for Bay 2 assignment
+        if (bay2 && assignment.bay_id === bay2.bay_id) {
+          console.log(`BAY 2 ASSIGNMENT DETAILS:`, {
+            available_from: assignment.available_from,
+            available_from_type: typeof assignment.available_from,
+            available_from_is_null: assignment.available_from === null,
+            available_to: assignment.available_to,
+            available_to_type: typeof assignment.available_to,
+            available_to_is_null: assignment.available_to === null,
+            day_of_week: assignment.day_of_week,
+            user_id: assignment.user_id
+          });
+        }
+        
         const isTemporarilyAvailable = 
           assignment.available_from !== null && 
           assignment.available_to !== null && 
@@ -107,10 +133,19 @@ const Bays = () => {
         }
       });
       
+      // Debug the maps
       console.log('Permanent Assignments Map:');
       permanentAssignmentsMap.forEach((userId, bayId) => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
       });
+      
+      if (bay2) {
+        console.log(`Bay 2 (id: ${bay2.bay_id}) assignment status:`, {
+          inPermanentAssignmentsMap: permanentAssignmentsMap.has(bay2.bay_id),
+          inTemporarilyAvailableBaysMap: temporarilyAvailableBays.has(bay2.bay_id),
+          inActiveDailyClaimsMap: activeDailyClaimsMap.has(bay2.bay_id)
+        });
+      }
       
       console.log('Temporarily available bays:', Array.from(temporarilyAvailableBays.entries()));
       
@@ -143,11 +178,19 @@ const Bays = () => {
       const updatedBays = baysData.map(bay => {
         const baseBay = castToBay(bay);
         
+        // Add detailed logging for Bay 2
+        const isBay2 = bay.bay_number === 2;
+        if (isBay2) {
+          console.log("Processing Bay 2 status determination...");
+        }
+        
         if (baseBay.status === 'Maintenance') {
+          if (isBay2) console.log("Bay 2 is in maintenance status, keeping it that way");
           return baseBay;
         }
         
         if (activeDailyClaimsMap.has(bay.bay_id)) {
+          if (isBay2) console.log("Bay 2 has an active daily claim");
           const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
           const claimedByUser = claimedByUserId === user?.user_id;
           return {
@@ -160,7 +203,7 @@ const Bays = () => {
         }
         
         if (temporarilyAvailableBays.has(bay.bay_id)) {
-          console.log(`Bay ${bay.bay_number} is temporarily available for today`);
+          if (isBay2) console.log("Bay 2 is temporarily available for today");
           return {
             ...baseBay,
             status: 'Available' as Bay['status']
@@ -168,22 +211,26 @@ const Bays = () => {
         }
         
         if (permanentAssignmentsMap.has(bay.bay_id)) {
+          if (isBay2) console.log("Bay 2 has a permanent assignment");
           const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
           const assignedToUser = assignedToUserId === user?.user_id;
           
           const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
                               cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
           
-          console.log(`Bay ${bay.bay_number}: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
+          if (isBay2) {
+            console.log(`Bay 2: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
+          }
           
           if (hasCancelledClaim) {
-            console.log(`Bay ${bay.bay_number} has been cancelled by its permanent assignee - marking as AVAILABLE`);
+            if (isBay2) console.log(`Bay 2 has been cancelled by its permanent assignee - marking as AVAILABLE`);
             return {
               ...baseBay,
               status: 'Available' as Bay['status']
             };
           }
           
+          if (isBay2) console.log(`Bay 2 is RESERVED (permanent assignment)`);
           return {
             ...baseBay,
             status: 'Reserved' as Bay['status'],
@@ -193,6 +240,7 @@ const Bays = () => {
           };
         }
         
+        if (isBay2) console.log(`Bay 2 has no assignments, marking as AVAILABLE`);
         return {
           ...baseBay,
           status: 'Available' as Bay['status']
@@ -200,6 +248,12 @@ const Bays = () => {
       });
       
       if (isMountedRef.current) {
+        // Final check for Bay 2
+        const finalBay2 = updatedBays.find(bay => bay.bay_number === 2);
+        if (finalBay2) {
+          console.log("FINAL BAY 2 STATUS:", finalBay2.status);
+        }
+        
         setBays(updatedBays as Bay[]);
         
         if (timeoutRef.current) {
