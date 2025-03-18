@@ -269,12 +269,13 @@ const Bays = () => {
           };
         }
         
-        // Important fix: Handle all 'Reserved' bays from the database correctly, regardless of permanent assignment
+        // CRITICAL FIX: Respect the database's "Reserved" status regardless of permanent assignment
+        // Remove the conditional check that was causing Bay 1 to not show as Reserved
         if (baseBay.status === 'Reserved') {
           if (isBay1) console.log("Bay 1 is Reserved in database");
           if (isBay2) console.log("Bay 2 is Reserved in database");
           
-          // If there's a permanent assignment for this bay, add the assignment info
+          // Add assignment info if available, but don't make it a condition for showing Reserved status
           if (permanentAssignmentsMap.has(bay.bay_id)) {
             const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
             const assignedToUser = assignedToUserId === user?.user_id;
@@ -285,10 +286,9 @@ const Bays = () => {
               reserved_by: assignedToUserId,
               is_permanent: true
             };
-          } else {
-            // If there's no permanent assignment but still reserved (maybe manually reserved in database)
-            return baseBay;
           }
+          // Even if there's no permanent assignment, keep the Reserved status
+          return baseBay;
         }
         
         // For all other cases, just use the database status as is
