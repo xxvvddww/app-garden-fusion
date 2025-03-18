@@ -13,8 +13,6 @@ import MakeBayAvailableDialog from '@/components/MakeBayAvailableDialog';
 import { format } from 'date-fns';
 
 const MyBay = () => {
-  console.log('⚡ MyBay component rendering');
-  
   const { user } = useAuth();
   const [assignments, setAssignments] = useState<(PermanentAssignment & { bay: Bay })[]>([]);
   const [dailyClaims, setDailyClaims] = useState<DailyClaim[]>([]);
@@ -23,29 +21,15 @@ const MyBay = () => {
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
   const { toast } = useToast();
   const today = format(new Date(), 'yyyy-MM-dd');
-  
-  console.log('MyBay render state:', { 
-    user: user ? `ID: ${user.user_id}` : 'No user', 
-    assignmentsCount: assignments.length,
-    dailyClaimsCount: dailyClaims.length,
-    loading,
-    today
-  });
 
   useEffect(() => {
-    console.log('⚡ MyBay useEffect triggered with user:', user ? `ID: ${user.user_id}` : 'No user');
-    
     if (user) {
-      console.log('🔄 User available, fetching assignments and claims');
       fetchUserAssignments();
       fetchUserDailyClaims();
-    } else {
-      console.log('⚠️ No user available, skipping data fetch');
     }
   }, [user]);
 
   const fetchUserAssignments = async () => {
-    console.log('🔄 Fetching user assignments for user:', user?.user_id);
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -56,20 +40,13 @@ const MyBay = () => {
         `)
         .eq('user_id', user?.user_id);
 
-      if (error) {
-        console.error('❌ Error fetching permanent assignments:', error);
-        throw error;
-      }
-      
-      console.log('✅ Fetched permanent assignments:', data ? data.length : 0);
-      console.log('Assignment raw data:', data);
+      if (error) throw error;
       
       const typedAssignments = (data || []).map(castToPermanentAssignmentWithBay);
-      console.log('Processed assignments data:', typedAssignments);
       
       setAssignments(typedAssignments);
     } catch (error) {
-      console.error('❌ Error fetching user assignments:', error);
+      console.error('Error fetching user assignments:', error);
       toast({
         title: 'Error',
         description: 'Failed to load your bay assignments',
@@ -81,7 +58,6 @@ const MyBay = () => {
   };
 
   const fetchUserDailyClaims = async () => {
-    console.log('🔄 Fetching daily claims for user:', user?.user_id);
     try {
       const { data, error } = await supabase
         .from('daily_claims')
@@ -89,20 +65,12 @@ const MyBay = () => {
         .eq('user_id', user?.user_id)
         .eq('status', 'Active');
 
-      if (error) {
-        console.error('❌ Error fetching daily claims:', error);
-        throw error;
-      }
-      
-      console.log('✅ Fetched daily claims:', data ? data.length : 0);
-      console.log('Daily claims raw data:', data);
+      if (error) throw error;
       
       const typedClaims = (data || []).map(castToDailyClaim);
-      console.log('Processed daily claims data:', typedClaims);
-      
       setDailyClaims(typedClaims);
     } catch (error) {
-      console.error('❌ Error fetching user daily claims:', error);
+      console.error('Error fetching user daily claims:', error);
       toast({
         title: 'Error',
         description: 'Failed to load your daily bay claims',
@@ -112,7 +80,6 @@ const MyBay = () => {
   };
 
   const getMyBays = () => {
-    console.log('🔄 getMyBays called - processing assignments and claims');
     const uniqueBaysMap = new Map<string, Bay>();
     const today = format(new Date(), 'yyyy-MM-dd');
     const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
@@ -182,13 +149,11 @@ const MyBay = () => {
   };
 
   const handleBayClick = (bay: Bay) => {
-    console.log('Bay clicked:', bay);
     setSelectedBay(bay);
     setAvailabilityDialogOpen(true);
   };
 
   if (loading) {
-    console.log('⏳ MyBay is in loading state, showing skeleton');
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-64" />
@@ -200,17 +165,14 @@ const MyBay = () => {
   }
 
   const myBays = getMyBays();
-  console.log('🏁 MyBay render completed with', myBays.length, 'bays');
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">My Bay</h1>
-      {console.log('🔍 Rendering MyBay component with', myBays.length, 'bays')}
       
       {myBays.length === 0 ? (
         <Card>
           <CardContent className="p-6 flex flex-col items-center justify-center">
-            {console.log('⚠️ No bays to display')}
             <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-center text-muted-foreground mb-4">
               You don't have any assigned parking bays
@@ -222,7 +184,6 @@ const MyBay = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {console.log('🔄 Rendering bay cards:', myBays.length)}
           {myBays.map(bay => (
             <BayCard 
               key={bay.bay_id} 
@@ -238,7 +199,6 @@ const MyBay = () => {
         open={availabilityDialogOpen}
         onOpenChange={setAvailabilityDialogOpen}
         onSuccess={() => {
-          console.log('✅ Dialog success callback triggered, refreshing data');
           fetchUserAssignments();
           fetchUserDailyClaims();
         }}
