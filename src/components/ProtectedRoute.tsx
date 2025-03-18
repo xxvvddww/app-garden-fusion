@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { supabase, refreshSession } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { RefreshCw } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -174,10 +175,15 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     };
   }, [session, user, navigate, refreshUserData, toast]);
 
+  // Handle manual refresh when requested by the user
+  const handleManualRefresh = () => {
+    window.location.reload();
+  };
+
   // Show enhanced loading state when refreshing session
   if (loading) {
     return (
-      <div className="container mx-auto p-4 space-y-4">
+      <div className="container mx-auto p-4 space-y-6">
         <div className="flex items-center space-x-2 mb-4">
           <Skeleton className="h-8 w-8 rounded-full" />
           <Skeleton className="h-8 w-64" />
@@ -185,6 +191,17 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-64 w-full" />
+        
+        <div className="flex justify-center mt-8">
+          <Button 
+            variant="outline" 
+            onClick={handleManualRefresh} 
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Page
+          </Button>
+        </div>
       </div>
     );
   }
