@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -30,7 +29,6 @@ const Bays = () => {
   const isMountedRef = useRef(true);
   const timeoutRef = useRef<number | null>(null);
 
-  // Wrap fetchBays in useCallback to prevent recreating the function on each render
   const fetchBays = useCallback(async () => {
     if (!isMountedRef.current) return;
     
@@ -87,10 +85,9 @@ const Bays = () => {
       });
       
       const permanentAssignmentsMap = new Map();
-      const temporarilyAvailableBays = new Set();
+      const temporarilyAvailableBays = new Map();
       
       permanentAssignmentsData.forEach(assignment => {
-        // Only mark as temporarily available if BOTH dates are set and today is within range
         const isTemporarilyAvailable = 
           assignment.available_from && 
           assignment.available_to && 
@@ -98,11 +95,9 @@ const Bays = () => {
           today <= assignment.available_to;
         
         if (isTemporarilyAvailable) {
-          temporarilyAvailableBays.add(assignment.bay_id);
+          temporarilyAvailableBays.set(assignment.bay_id, assignment.user_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
-        } else {
-          // Important: This means ALL permanent assignments that don't have valid date ranges 
-          // are considered permanently assigned
+        } else if (!temporarilyAvailableBays.has(assignment.bay_id)) {
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
         }
       });
@@ -112,7 +107,7 @@ const Bays = () => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
       });
       
-      console.log('Temporarily available bays:', Array.from(temporarilyAvailableBays));
+      console.log('Temporarily available bays:', Array.from(temporarilyAvailableBays.entries()));
       
       if (!isMountedRef.current) return;
       
@@ -202,8 +197,6 @@ const Bays = () => {
       if (isMountedRef.current) {
         setBays(updatedBays as Bay[]);
         
-        // Add a short delay before turning off loading state
-        // This ensures data is properly rendered before showing the UI
         if (timeoutRef.current) {
           window.clearTimeout(timeoutRef.current);
         }
@@ -227,7 +220,6 @@ const Bays = () => {
     }
   }, [today, currentDayOfWeek, user, toast]);
   
-  // Use our custom hook for Supabase subscriptions
   useSupabaseSubscription(
     [
       { table: 'daily_claims' },
@@ -240,10 +232,8 @@ const Bays = () => {
   useEffect(() => {
     isMountedRef.current = true;
     
-    // Initial fetch when component mounts
     fetchBays();
     
-    // Cleanup function
     return () => {
       console.log('Cleaning up Bays component');
       isMountedRef.current = false;
