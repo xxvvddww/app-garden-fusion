@@ -157,7 +157,11 @@ const Bays = () => {
         console.log(`Bay 1 (id: ${bay1.bay_id}) assignment status:`, {
           inPermanentAssignmentsMap: permanentAssignmentsMap.has(bay1.bay_id),
           inTemporarilyAvailableBaysMap: temporarilyAvailableBays.has(bay1.bay_id),
-          inActiveDailyClaimsMap: activeDailyClaimsMap.has(bay1.bay_id)
+          inActiveDailyClaimsMap: activeDailyClaimsMap.has(bay1.bay_id),
+          isCancelledByPermanentAssignee: 
+            permanentAssignmentsMap.has(bay1.bay_id) && 
+            cancelledDailyClaimsMap.has(bay1.bay_id) &&
+            cancelledDailyClaimsMap.get(bay1.bay_id).has(permanentAssignmentsMap.get(bay1.bay_id))
         });
       }
       
