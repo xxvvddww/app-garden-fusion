@@ -73,23 +73,6 @@ const Bays = () => {
       console.log('Daily claims:', dailyClaimsData);
       console.log('Permanent assignments:', permanentAssignmentsData);
       
-      // Find any permanent assignments for Bay 1 and Bay 2
-      if (bay1) {
-        const bay1Assignments = permanentAssignmentsData.filter(assignment => assignment.bay_id === bay1.bay_id);
-        console.log("Bay 1 permanent assignments:", bay1Assignments);
-        console.log("Bay 1 database status:", bay1.status);
-      }
-      
-      if (bay2) {
-        const bay2Assignments = permanentAssignmentsData.filter(assignment => assignment.bay_id === bay2.bay_id);
-        console.log("Bay 2 permanent assignments:", bay2Assignments);
-        console.log("Bay 2 database status:", bay2.status);
-      }
-      
-      permanentAssignmentsData.forEach(assignment => {
-        console.log(`Assignment for bay ${assignment.bay_id}: available_from=${assignment.available_from || 'NULL'}, available_to=${assignment.available_to || 'NULL'}`);
-      });
-      
       const activeDailyClaimsMap = new Map();
       const cancelledDailyClaimsMap = new Map();
       
@@ -113,7 +96,6 @@ const Bays = () => {
       const temporarilyAvailableBays = new Map();
       
       permanentAssignmentsData.forEach(assignment => {
-        // Debug exact values for Bay 1 and Bay 2 assignment
         if (bay1 && assignment.bay_id === bay1.bay_id) {
           console.log(`BAY 1 ASSIGNMENT DETAILS:`, {
             available_from: assignment.available_from,
@@ -155,7 +137,6 @@ const Bays = () => {
         }
       });
       
-      // Debug the maps
       console.log('Permanent Assignments Map:');
       permanentAssignmentsMap.forEach((userId, bayId) => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
@@ -208,7 +189,6 @@ const Bays = () => {
       const updatedBays = baysData.map(bay => {
         const baseBay = castToBay(bay);
         
-        // Add detailed logging for Bay 1 and Bay 2
         const isBay1 = bay.bay_number === 1;
         const isBay2 = bay.bay_number === 2;
         
@@ -222,14 +202,12 @@ const Bays = () => {
           console.log("Bay 2 database status:", bay.status);
         }
         
-        // Keep maintenance status
         if (baseBay.status === 'Maintenance') {
           if (isBay1) console.log("Bay 1 is in maintenance status, keeping it that way");
           if (isBay2) console.log("Bay 2 is in maintenance status, keeping it that way");
           return baseBay;
         }
         
-        // Daily active claims take precedence over everything
         if (activeDailyClaimsMap.has(bay.bay_id)) {
           if (isBay1) console.log("Bay 1 has an active daily claim");
           if (isBay2) console.log("Bay 2 has an active daily claim");
@@ -244,7 +222,6 @@ const Bays = () => {
           };
         }
         
-        // If bay is temporarily available, override the database status
         if (temporarilyAvailableBays.has(bay.bay_id)) {
           if (isBay1) console.log("Bay 1 is temporarily available for today");
           if (isBay2) console.log("Bay 2 is temporarily available for today");
@@ -254,7 +231,6 @@ const Bays = () => {
           };
         }
         
-        // If the bay has permanent assignments that have been cancelled for today, make it available
         const hasCancelledClaim = 
           permanentAssignmentsMap.has(bay.bay_id) && 
           cancelledDailyClaimsMap.has(bay.bay_id) && 
@@ -269,13 +245,10 @@ const Bays = () => {
           };
         }
         
-        // CRITICAL FIX: Respect the database's "Reserved" status regardless of permanent assignment
-        // Remove the conditional check that was causing Bay 1 to not show as Reserved
         if (baseBay.status === 'Reserved') {
           if (isBay1) console.log("Bay 1 is Reserved in database");
           if (isBay2) console.log("Bay 2 is Reserved in database");
           
-          // Add assignment info if available, but don't make it a condition for showing Reserved status
           if (permanentAssignmentsMap.has(bay.bay_id)) {
             const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
             const assignedToUser = assignedToUserId === user?.user_id;
@@ -287,18 +260,15 @@ const Bays = () => {
               is_permanent: true
             };
           }
-          // Even if there's no permanent assignment, keep the Reserved status
           return baseBay;
         }
         
-        // For all other cases, just use the database status as is
         if (isBay1) console.log(`Using Bay 1's database status: ${baseBay.status}`);
         if (isBay2) console.log(`Using Bay 2's database status: ${baseBay.status}`);
         return baseBay;
       });
       
       if (isMountedRef.current) {
-        // Final check for Bay 1 and Bay 2
         const finalBay1 = updatedBays.find(bay => bay.bay_number === 1);
         const finalBay2 = updatedBays.find(bay => bay.bay_number === 2);
         

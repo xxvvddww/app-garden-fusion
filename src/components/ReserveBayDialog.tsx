@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -243,7 +242,7 @@ const ReserveBayDialog = ({
       setLoading(false);
     }
   };
-
+  
   const handleAdminRevokeBay = async () => {
     if (!bay || !isAdmin) return;
     
