@@ -217,6 +217,10 @@ export type Database = {
         }
         Returns: string
       }
+      manual_update_bay_status: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

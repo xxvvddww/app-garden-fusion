@@ -182,13 +182,16 @@ const Bays = () => {
         const isBay2 = bay.bay_number === 2;
         if (isBay2) {
           console.log("Processing Bay 2 status determination...");
+          console.log("Bay 2 database status:", bay.status);
         }
         
+        // Keep maintenance status
         if (baseBay.status === 'Maintenance') {
           if (isBay2) console.log("Bay 2 is in maintenance status, keeping it that way");
           return baseBay;
         }
         
+        // Daily active claims take precedence over everything
         if (activeDailyClaimsMap.has(bay.bay_id)) {
           if (isBay2) console.log("Bay 2 has an active daily claim");
           const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
@@ -202,6 +205,7 @@ const Bays = () => {
           };
         }
         
+        // If bay is temporarily available, override the database status
         if (temporarilyAvailableBays.has(bay.bay_id)) {
           if (isBay2) console.log("Bay 2 is temporarily available for today");
           return {
@@ -210,41 +214,38 @@ const Bays = () => {
           };
         }
         
-        if (permanentAssignmentsMap.has(bay.bay_id)) {
-          if (isBay2) console.log("Bay 2 has a permanent assignment");
+        // If the bay has permanent assignments that have been cancelled for today, make it available
+        const hasCancelledClaim = 
+          permanentAssignmentsMap.has(bay.bay_id) && 
+          cancelledDailyClaimsMap.has(bay.bay_id) && 
+          cancelledDailyClaimsMap.get(bay.bay_id).has(permanentAssignmentsMap.get(bay.bay_id));
+        
+        if (hasCancelledClaim) {
+          if (isBay2) console.log("Bay 2 has been cancelled by its permanent assignee - marking as AVAILABLE");
+          return {
+            ...baseBay,
+            status: 'Available' as Bay['status']
+          };
+        }
+        
+        // Use database status for all other cases (which should correctly show Reserved for permanently assigned bays)
+        // Check if this bay has a permanent assignment but respect the database status
+        if (permanentAssignmentsMap.has(bay.bay_id) && baseBay.status === 'Reserved') {
+          if (isBay2) console.log("Bay 2 has permanent assignment and database shows Reserved");
           const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
           const assignedToUser = assignedToUserId === user?.user_id;
           
-          const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
-                              cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
-          
-          if (isBay2) {
-            console.log(`Bay 2: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
-          }
-          
-          if (hasCancelledClaim) {
-            if (isBay2) console.log(`Bay 2 has been cancelled by its permanent assignee - marking as AVAILABLE`);
-            return {
-              ...baseBay,
-              status: 'Available' as Bay['status']
-            };
-          }
-          
-          if (isBay2) console.log(`Bay 2 is RESERVED (permanent assignment)`);
           return {
             ...baseBay,
-            status: 'Reserved' as Bay['status'],
             reserved_by_you: assignedToUser,
             reserved_by: assignedToUserId,
             is_permanent: true
           };
         }
         
-        if (isBay2) console.log(`Bay 2 has no assignments, marking as AVAILABLE`);
-        return {
-          ...baseBay,
-          status: 'Available' as Bay['status']
-        };
+        // For all other cases, just use the database status as is
+        if (isBay2) console.log(`Using Bay 2's database status: ${baseBay.status}`);
+        return baseBay;
       });
       
       if (isMountedRef.current) {
