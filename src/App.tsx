@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,6 +16,8 @@ import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { getBasename } from "@/utils/routing";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -67,6 +70,7 @@ const DefaultRedirect = () => {
   return <Navigate to="/bays" replace />;
 };
 
+// Patch window.open to ensure it works properly
 if (typeof window !== 'undefined') {
   const originalOpen = window.open;
   window.open = function(url, target, features) {
@@ -75,105 +79,125 @@ if (typeof window !== 'undefined') {
   };
 }
 
-const getBasename = () => {
-  const urlPath = window.location.pathname;
-  
-  console.log('📍 Determining basename with:', {
-    urlPath,
-    hostname: window.location.hostname,
-    isPreviewEnvironment: window.location.hostname.includes('lovable.app') || 
-      window.location.hostname.includes('lovableproject.com')
-  });
-  
-  if (window.location.hostname.includes('lovable.app') || 
-      window.location.hostname.includes('lovableproject.com')) {
-    
-    const pathSegments = urlPath.split('/').filter(Boolean);
-    console.log('🔍 Path segments after filtering:', pathSegments);
-    
-    if (pathSegments.length > 0) {
-      const basename = `/${pathSegments[0]}`;
-      console.log('✅ Using basename:', basename);
-      return basename;
-    }
-    
-    console.log('⚠️ No path segments found, using default basename');
-  }
-  
-  console.log('✅ Using default basename: /');
-  return '/';
-};
-
 const App = () => {
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const basename = getBasename();
-  console.log('🧭 Router initialized with basename:', basename);
   
   useEffect(() => {
-    console.log('🚀 BrowserRouter mounted with basename:', basename);
+    console.log('🚀 App component mounted');
+    console.log('🧭 Using basename:', basename);
+    
+    // Log detailed environment information
+    console.log('📊 Environment information:', {
+      basename,
+      location: window.location.href,
+      pathname: window.location.pathname,
+      hostname: window.location.hostname,
+      origin: window.location.origin,
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Add unhandled error logging
+    const handleError = (event: ErrorEvent) => {
+      console.error('🔥 Unhandled error:', event.error);
+      setLoadError(event.error);
+    };
+    
+    window.addEventListener('error', handleError);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+    };
   }, [basename]);
   
+  // If there's a critical error, show a user-friendly error message
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white p-4">
+        <div className="max-w-md w-full bg-slate-900 rounded-lg shadow-xl p-6">
+          <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
+          <p className="mb-4 text-slate-300">
+            We're having trouble loading the application. Please try refreshing the page.
+          </p>
+          <pre className="p-4 bg-slate-800 rounded text-xs overflow-auto mb-4">
+            {loadError.message}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <ThemeContextProvider>
-          <TooltipProvider>
-            <AuthProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter basename={basename}>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute>
-                        <DefaultRedirect />
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  <Route
-                    path="/bays"
-                    element={
-                      <ProtectedRoute>
-                        <MainLayout>
-                          <Bays />
-                        </MainLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  <Route
-                    path="/my-bay"
-                    element={
-                      <ProtectedRoute>
-                        <MainLayout>
-                          <MyBay />
-                        </MainLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  <Route
-                    path="/admin"
-                    element={
-                      <ProtectedRoute requiredRole="Admin">
-                        <MainLayout>
-                          <Admin />
-                        </MainLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-                  
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </BrowserRouter>
-            </AuthProvider>
-          </TooltipProvider>
-        </ThemeContextProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <ThemeContextProvider>
+            <TooltipProvider>
+              <AuthProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter basename={basename}>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    
+                    <Route
+                      path="/"
+                      element={
+                        <ProtectedRoute>
+                          <DefaultRedirect />
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/bays"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <Bays />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/my-bay"
+                      element={
+                        <ProtectedRoute>
+                          <MainLayout>
+                            <MyBay />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/admin"
+                      element={
+                        <ProtectedRoute requiredRole="Admin">
+                          <MainLayout>
+                            <Admin />
+                          </MainLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </BrowserRouter>
+              </AuthProvider>
+            </TooltipProvider>
+          </ThemeContextProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
