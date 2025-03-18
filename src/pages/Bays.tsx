@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import BayCard from '@/components/BayCard';
@@ -11,26 +11,6 @@ import MakeBayAvailableDialog from '@/components/MakeBayAvailableDialog';
 import BayAssignmentsTable from '@/components/BayAssignmentsTable';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-
-interface ClaimWithDetails {
-  claim_id: string;
-  bay_id: string;
-  user_id: string;
-  userName: string;
-  bayNumber: number;
-  bayLocation: string;
-  status: string;
-}
-
-interface AssignmentWithDetails {
-  assignment_id: string;
-  bay_id: string;
-  user_id: string;
-  userName: string;
-  bayNumber: number;
-  bayLocation: string;
-  day_of_week: string;
-}
 
 const Bays = () => {
   const [bays, setBays] = useState<Bay[]>([]);
@@ -44,14 +24,26 @@ const Bays = () => {
   const today = format(new Date(), 'yyyy-MM-dd');
   const currentDayOfWeek = format(new Date(), 'EEEE'); // Returns day name like "Monday"
   const isAdmin = user && user.role === 'Admin';
+  
+  const isMountedRef = useRef(true);
+  const channelsRef = useRef<any[]>([]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchBays();
 
-    // Setup subscription for real-time updates - fixed to avoid locking the UI
     const setupRealtimeSubscriptions = () => {
+      if (channelsRef.current.length > 0) {
+        channelsRef.current.forEach(channel => {
+          supabase.removeChannel(channel);
+        });
+        channelsRef.current = [];
+      }
+      
+      const timestamp = Date.now();
+      
       const dailyClaimsChannel = supabase
-        .channel('daily-claims-changes')
+        .channel(`daily-claims-changes-${timestamp}`)
         .on(
           'postgres_changes',
           {
@@ -61,13 +53,16 @@ const Bays = () => {
           },
           () => {
             console.log('Daily claims changed, refreshing bays...');
-            fetchBays();
+            if (isMountedRef.current) {
+              fetchBays();
+            }
           }
         )
         .subscribe();
+      channelsRef.current.push(dailyClaimsChannel);
 
       const permanentAssignmentsChannel = supabase
-        .channel('permanent-assignments-changes')
+        .channel(`permanent-assignments-changes-${timestamp}`)
         .on(
           'postgres_changes',
           {
@@ -77,13 +72,16 @@ const Bays = () => {
           },
           () => {
             console.log('Permanent assignments changed, refreshing bays...');
-            fetchBays();
+            if (isMountedRef.current) {
+              fetchBays();
+            }
           }
         )
         .subscribe();
+      channelsRef.current.push(permanentAssignmentsChannel);
 
       const baysChannel = supabase
-        .channel('bays-changes')
+        .channel(`bays-changes-${timestamp}`)
         .on(
           'postgres_changes',
           {
@@ -93,35 +91,37 @@ const Bays = () => {
           },
           () => {
             console.log('Bays changed, refreshing bays...');
-            fetchBays();
+            if (isMountedRef.current) {
+              fetchBays();
+            }
           }
         )
         .subscribe();
+      channelsRef.current.push(baysChannel);
 
-      return {
-        dailyClaimsChannel,
-        permanentAssignmentsChannel,
-        baysChannel
-      };
+      return channelsRef.current;
     };
 
-    // Initialize channels
-    const channels = setupRealtimeSubscriptions();
+    setupRealtimeSubscriptions();
 
-    // Cleanup subscriptions on component unmount
     return () => {
-      console.log('Cleaning up Supabase channels...');
-      if (channels.dailyClaimsChannel) supabase.removeChannel(channels.dailyClaimsChannel);
-      if (channels.permanentAssignmentsChannel) supabase.removeChannel(channels.permanentAssignmentsChannel);
-      if (channels.baysChannel) supabase.removeChannel(channels.baysChannel);
+      console.log('Cleaning up Bays component and all Supabase channels...');
+      
+      isMountedRef.current = false;
+      
+      channelsRef.current.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
+      channelsRef.current = [];
     };
   }, []);
 
   const fetchBays = async () => {
+    if (!isMountedRef.current) return;
+    
     try {
       setLoading(true);
       
-      // 1. Fetch all bays
       const { data: baysData, error: baysError } = await supabase
         .from('bays')
         .select('*')
@@ -129,7 +129,6 @@ const Bays = () => {
 
       if (baysError) throw baysError;
       
-      // 2. Get daily claims for today - include both active and cancelled claims
       const { data: dailyClaimsData, error: claimsError } = await supabase
         .from('daily_claims')
         .select('bay_id, user_id, status')
@@ -137,7 +136,6 @@ const Bays = () => {
         
       if (claimsError) throw claimsError;
       
-      // 3. Get permanent assignments for today's day of week
       const { data: permanentAssignmentsData, error: assignmentsError } = await supabase
         .from('permanent_assignments')
         .select('bay_id, user_id, day_of_week, available_from, available_to')
@@ -150,8 +148,6 @@ const Bays = () => {
       console.log('Daily claims:', dailyClaimsData);
       console.log('Permanent assignments:', permanentAssignmentsData);
       
-      // Create maps for quick lookups
-      // For daily claims, we need to consider both active and cancelled claims
       const activeDailyClaimsMap = new Map();
       const cancelledDailyClaimsMap = new Map();
       
@@ -159,7 +155,6 @@ const Bays = () => {
         if (claim.status === 'Active') {
           activeDailyClaimsMap.set(claim.bay_id, claim.user_id);
         } else if (claim.status === 'Cancelled') {
-          // Keep track of which bays have been cancelled by which user
           if (!cancelledDailyClaimsMap.has(claim.bay_id)) {
             cancelledDailyClaimsMap.set(claim.bay_id, new Set());
           }
@@ -167,18 +162,15 @@ const Bays = () => {
         }
       });
       
-      // Debug logging for cancelled claims
       console.log('Cancelled Daily Claims Map:');
       cancelledDailyClaimsMap.forEach((userSet, bayId) => {
         console.log(`Bay ${bayId}:`, Array.from(userSet));
       });
       
-      // Map permanent assignments by bay_id, considering availability dates
       const permanentAssignmentsMap = new Map();
       const temporarilyAvailableBays = new Set();
       
       permanentAssignmentsData.forEach(assignment => {
-        // Check if this assignment is temporarily available based on date range
         const isTemporarilyAvailable = 
           assignment.available_from && 
           assignment.available_to && 
@@ -186,16 +178,13 @@ const Bays = () => {
           today <= assignment.available_to;
         
         if (isTemporarilyAvailable) {
-          // Mark this bay as temporarily available
           temporarilyAvailableBays.add(assignment.bay_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
         } else {
-          // Add to permanent assignments map
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
         }
       });
       
-      // Debug log permanent assignments
       console.log('Permanent Assignments Map:');
       permanentAssignmentsMap.forEach((userId, bayId) => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
@@ -203,12 +192,10 @@ const Bays = () => {
       
       console.log('Temporarily available bays:', Array.from(temporarilyAvailableBays));
       
-      // Collect all user IDs to fetch their names
       const userIds = new Set<string>();
       dailyClaimsData.forEach(claim => userIds.add(claim.user_id));
       permanentAssignmentsData.forEach(assignment => userIds.add(assignment.user_id));
       
-      // Fetch user names if there are any reservations
       if (userIds.size > 0) {
         const { data: userData, error: userError } = await supabase
           .from('users')
@@ -222,19 +209,18 @@ const Bays = () => {
           namesMap[u.user_id] = u.name;
         });
         
-        setUserNames(namesMap);
+        if (isMountedRef.current) {
+          setUserNames(namesMap);
+        }
       }
       
-      // Update bay status based on assignments and claims
       const updatedBays = baysData.map(bay => {
         const baseBay = castToBay(bay);
         
-        // Check if bay is under maintenance - keep that status
         if (baseBay.status === 'Maintenance') {
           return baseBay;
         }
         
-        // Check if bay is claimed for today (active claim takes precedence)
         if (activeDailyClaimsMap.has(bay.bay_id)) {
           const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
           const claimedByUser = claimedByUserId === user?.user_id;
@@ -247,7 +233,6 @@ const Bays = () => {
           };
         }
         
-        // Check if bay is temporarily available (date range)
         if (temporarilyAvailableBays.has(bay.bay_id)) {
           console.log(`Bay ${bay.bay_number} is temporarily available for today`);
           return {
@@ -256,18 +241,15 @@ const Bays = () => {
           };
         }
         
-        // Check if bay has a permanent assignment for today
         if (permanentAssignmentsMap.has(bay.bay_id)) {
           const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
           const assignedToUser = assignedToUserId === user?.user_id;
           
-          // Check if the permanent assignment has been cancelled for today by the assigned user
           const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
                               cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
           
           console.log(`Bay ${bay.bay_number}: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
           
-          // If this specific user's permanent assignment is cancelled for today, mark bay as available
           if (hasCancelledClaim) {
             console.log(`Bay ${bay.bay_number} has been cancelled by its permanent assignee - marking as AVAILABLE`);
             return {
@@ -276,7 +258,6 @@ const Bays = () => {
             };
           }
           
-          // Otherwise, bay is still reserved
           return {
             ...baseBay,
             status: 'Reserved' as Bay['status'],
@@ -286,23 +267,28 @@ const Bays = () => {
           };
         }
         
-        // Bay is available if it has no active claims or permanent assignments for today
         return {
           ...baseBay,
           status: 'Available' as Bay['status']
         };
       });
       
-      setBays(updatedBays as Bay[]);
+      if (isMountedRef.current) {
+        setBays(updatedBays as Bay[]);
+      }
     } catch (error) {
       console.error('Error fetching bays:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load bays data',
-        variant: 'destructive',
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load bays data',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -310,11 +296,9 @@ const Bays = () => {
     console.log('Bay clicked:', bay);
     setSelectedBay(bay);
     
-    // If the bay is permanently assigned to the current user, open the make available dialog
     if (bay.reserved_by_you && bay.is_permanent) {
       setAvailabilityDialogOpen(true);
     } else {
-      // Otherwise, open the reserve dialog (which includes revoke functionality for admins)
       setReserveDialogOpen(true);
     }
   };

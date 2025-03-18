@@ -1,9 +1,8 @@
-
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button'; // Add this import
+import { Button } from '@/components/ui/button';
 import { supabase, refreshSession } from '@/integrations/supabase/client';
 
 interface ProtectedRouteProps {
@@ -19,8 +18,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     console.log("ProtectedRoute - auth state:", { 
       hasUser: !!user, 
       hasSession: !!session, 
@@ -31,28 +33,36 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     });
 
     // Set hasCheckedAuth to true once loading is complete
-    if (!loading && !hasCheckedAuth) {
+    if (!loading && !hasCheckedAuth && isMountedRef.current) {
       setHasCheckedAuth(true);
     }
+    
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [user, session, loading, location, hasCheckedAuth, refreshAttempts]);
 
   // Force a session refresh on component mount
   useEffect(() => {
     const trySessionRefresh = async () => {
+      if (!isMountedRef.current) return;
+      
       if (!user && !loading && refreshAttempts < 3) {
         setIsRefreshing(true);
         try {
           console.log(`Attempting session refresh (attempt ${refreshAttempts + 1})`);
           await refreshSession();
           // After refreshing, update user data in Auth context
-          if (refreshUserData) {
+          if (refreshUserData && isMountedRef.current) {
             await refreshUserData();
           }
         } catch (error) {
           console.error("Error during forced session refresh:", error);
         } finally {
-          setIsRefreshing(false);
-          setRefreshAttempts(prev => prev + 1);
+          if (isMountedRef.current) {
+            setIsRefreshing(false);
+            setRefreshAttempts(prev => prev + 1);
+          }
         }
       }
     };
@@ -60,11 +70,17 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     if (hasCheckedAuth && !user && !loading) {
       trySessionRefresh();
     }
+    
+    return () => {
+      // Cleanup
+    };
   }, [hasCheckedAuth, user, loading, refreshAttempts, refreshUserData]);
 
   // When returning from background on mobile, this helps re-validate auth status
   useEffect(() => {
     const handleVisibilityChange = async () => {
+      if (!isMountedRef.current) return;
+      
       if (document.visibilityState === 'visible') {
         console.log('App visible, rechecking auth state in ProtectedRoute');
         
@@ -77,11 +93,11 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           });
           
           // If we have a session but no user data, force a refresh
-          if (!user && refreshUserData) {
+          if (!user && refreshUserData && isMountedRef.current) {
             console.log("We have a session but no user data, refreshing user data");
             await refreshUserData();
           }
-        } else if (!user) {
+        } else if (!user && isMountedRef.current) {
           console.log("No session found on visibility change, redirecting to login");
           navigate('/login', { replace: true });
         }
