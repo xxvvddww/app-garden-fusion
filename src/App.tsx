@@ -17,12 +17,13 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
+// Configure QueryClient with appropriate settings
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000,
-      gcTime: 30 * 60 * 1000,  // Changed from cacheTime to gcTime
+      gcTime: 30 * 60 * 1000,
       retry: 2,
     },
   },
@@ -67,6 +68,16 @@ const DefaultRedirect = () => {
   
   return <Navigate to="/bays" replace />;
 };
+
+// Patch window.open to ensure it works properly
+if (typeof window !== 'undefined') {
+  const originalOpen = window.open;
+  window.open = function(url, target, features) {
+    // Log external link opening for debugging
+    console.log("Opening external link:", url);
+    return originalOpen.call(this, url, target, features);
+  };
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
