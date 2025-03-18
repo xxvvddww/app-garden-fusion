@@ -1,3 +1,4 @@
+
 import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,7 +27,6 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const isMountedRef = useRef(true);
   const timeoutRef = useRef<number | null>(null);
   const recoveryTimeoutRef = useRef<number | null>(null);
-  const autoRefreshTimeoutRef = useRef<number | null>(null);
 
   // Cleanup function to prevent memory leaks
   useEffect(() => {
@@ -39,9 +39,6 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       }
       if (recoveryTimeoutRef.current) {
         window.clearTimeout(recoveryTimeoutRef.current);
-      }
-      if (autoRefreshTimeoutRef.current) {
-        window.clearTimeout(autoRefreshTimeoutRef.current);
       }
     };
   }, []);
@@ -198,24 +195,6 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const handleManualRefresh = () => {
     window.location.reload();
   };
-
-  // Auto-refresh after 100ms when loading screen is displayed
-  useEffect(() => {
-    if (loading && isMountedRef.current) {
-      autoRefreshTimeoutRef.current = window.setTimeout(() => {
-        if (isMountedRef.current) {
-          console.log("Auto-refreshing page after 100ms delay");
-          window.location.reload();
-        }
-      }, 100);
-    }
-
-    return () => {
-      if (autoRefreshTimeoutRef.current) {
-        window.clearTimeout(autoRefreshTimeoutRef.current);
-      }
-    };
-  }, [loading]);
 
   // Show enhanced loading state when refreshing session
   if (loading) {
