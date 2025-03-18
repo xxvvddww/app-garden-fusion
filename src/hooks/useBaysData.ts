@@ -34,51 +34,64 @@ export function useBaysData() {
       
       if (!isMountedRef.current) return;
       
+      // Guard against missing result
       if (!result) {
         console.error('No data returned from fetchBayData');
-        throw new Error('No data returned');
+        setBays([]);
+        setLoading(false);
+        return;
       }
       
       const { baysData, dailyClaimsData, permanentAssignmentsData } = result;
       
+      // Log data fetched
       console.log('Data fetched:', {
-        baysData: baysData?.length || 0,
-        dailyClaimsData: dailyClaimsData?.length || 0,
-        permanentAssignmentsData: permanentAssignmentsData?.length || 0
+        baysDataLength: baysData?.length || 0,
+        dailyClaimsDataLength: dailyClaimsData?.length || 0,
+        permanentAssignmentsDataLength: permanentAssignmentsData?.length || 0
       });
       
-      // Process the bay data
-      const updatedBays = processBayData(
-        baysData || [], 
-        dailyClaimsData || [], 
-        permanentAssignmentsData || [],
-        userNames,
-        user?.user_id,
-        today,
-        currentDayOfWeek
-      );
-      
-      if (isMountedRef.current) {
-        console.log('Processed bays:', updatedBays?.length || 0);
+      // Process the bay data only if we have valid bays data
+      if (baysData && Array.isArray(baysData) && baysData.length > 0) {
+        const updatedBays = processBayData(
+          baysData,
+          dailyClaimsData || [], 
+          permanentAssignmentsData || [],
+          userNames,
+          user?.user_id,
+          today,
+          currentDayOfWeek
+        );
         
-        // Log for debugging
-        logBayStatus(updatedBays || []);
-        
-        // Update state with processed bays
-        setBays(updatedBays || []);
-        
-        if (timeoutRef.current) {
-          window.clearTimeout(timeoutRef.current);
+        if (isMountedRef.current) {
+          console.log('Processed bays:', updatedBays?.length || 0);
+          
+          // Log for debugging
+          logBayStatus(updatedBays || []);
+          
+          // Update state with processed bays
+          setBays(updatedBays || []);
         }
-        
-        // Add a small delay before finishing loading to prevent UI flicker
-        timeoutRef.current = window.setTimeout(() => {
-          if (isMountedRef.current) {
-            setLoading(false);
-            console.log('Loading state set to false');
-          }
-        }, 300);
+      } else {
+        console.warn('No bays data to process');
+        if (isMountedRef.current) {
+          setBays([]);
+        }
       }
+      
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+      
+      // Set loading to false after a small delay
+      timeoutRef.current = window.setTimeout(() => {
+        if (isMountedRef.current) {
+          setLoading(false);
+          console.log('Loading state set to false');
+        }
+      }, 300);
+      
     } catch (error) {
       console.error('Error in fetchBays:', error);
       if (isMountedRef.current) {

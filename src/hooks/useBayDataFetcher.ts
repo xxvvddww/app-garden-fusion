@@ -29,10 +29,18 @@ export const useBayDataFetcher = () => {
         throw baysError;
       }
       
-      if (!baysData || !Array.isArray(baysData)) {
-        console.error('No bays data returned or invalid format');
-        throw new Error('Invalid bays data');
+      // Validate bays data
+      if (!baysData || !Array.isArray(baysData) || baysData.length === 0) {
+        console.warn('No bays data returned or invalid format:', baysData);
+        // Return empty arrays instead of throwing
+        return { 
+          baysData: [], 
+          dailyClaimsData: [], 
+          permanentAssignmentsData: [] 
+        };
       }
+      
+      console.log('Successfully fetched bays data:', baysData.length);
       
       // Fetch daily claims for today
       const { data: dailyClaimsData, error: claimsError } = await supabase
@@ -42,7 +50,12 @@ export const useBayDataFetcher = () => {
         
       if (claimsError) {
         console.error('Error fetching daily claims:', claimsError);
-        throw claimsError;
+        // Continue despite error, just use empty array
+        return { 
+          baysData: baysData || [], 
+          dailyClaimsData: [], 
+          permanentAssignmentsData: [] 
+        };
       }
       
       // Query permanent assignments for today's day of week
@@ -53,14 +66,19 @@ export const useBayDataFetcher = () => {
         
       if (assignmentsError) {
         console.error('Error fetching permanent assignments:', assignmentsError);
-        throw assignmentsError;
+        // Continue despite error, just use empty array
+        return { 
+          baysData: baysData || [], 
+          dailyClaimsData: dailyClaimsData || [], 
+          permanentAssignmentsData: [] 
+        };
       }
       
       console.log('Today:', today);
       console.log('Current day of week:', currentDayOfWeek);
-      console.log('Daily claims:', dailyClaimsData);
-      console.log('Permanent assignments:', permanentAssignmentsData);
-      console.log('All bays data:', baysData);
+      console.log('Daily claims:', dailyClaimsData?.length || 0);
+      console.log('Permanent assignments:', permanentAssignmentsData?.length || 0);
+      console.log('All bays data:', baysData?.length || 0);
       
       // Extract all user IDs for fetching names
       const userIds = new Set<string>();
@@ -77,7 +95,12 @@ export const useBayDataFetcher = () => {
       
       // Fetch user names if there are any user IDs
       if (userIds.size > 0) {
-        await fetchUserNames(userIds);
+        try {
+          await fetchUserNames(userIds);
+        } catch (error) {
+          console.error('Error fetching user names:', error);
+          // Continue anyway
+        }
       }
       
       return { 
@@ -92,7 +115,7 @@ export const useBayDataFetcher = () => {
         description: 'Failed to load bays data',
         variant: 'destructive',
       });
-      // Return empty arrays instead of throwing error to prevent rendering crashes
+      // Always return empty arrays on error
       return { 
         baysData: [], 
         dailyClaimsData: [], 

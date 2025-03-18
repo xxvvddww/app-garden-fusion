@@ -13,10 +13,21 @@ export const processBayData = (
   today: string,
   currentDayOfWeek: string
 ): Bay[] => {
+  // Validate input parameters to avoid runtime errors
   if (!baysData || !Array.isArray(baysData) || baysData.length === 0) {
     console.error('Invalid or missing bays data:', baysData);
     return [];
   }
+
+  console.log('Processing bay data with inputs:', {
+    baysCount: baysData.length,
+    dailyClaimsCount: dailyClaimsData?.length || 0,
+    permanentAssignmentsCount: permanentAssignmentsData?.length || 0,
+    userNamesCount: userNames ? Object.keys(userNames).length : 0,
+    currentUserId: currentUserId || 'not set',
+    today,
+    currentDayOfWeek
+  });
 
   // Create maps for easier lookup
   const activeDailyClaimsMap = new Map();
@@ -68,79 +79,83 @@ export const processBayData = (
   }
   
   // Process bays with all the collected information
-  const processedBays = baysData.map(bay => {
-    if (!bay || !bay.bay_id) {
-      console.error('Invalid bay object:', bay);
-      return null;
-    }
-
-    try {
-      const baseBay = castToBay(bay);
-      
-      if (baseBay.status === 'Maintenance') {
-        return baseBay;
-      }
-      
-      // Check active daily claims first (highest priority)
-      if (activeDailyClaimsMap.has(bay.bay_id)) {
-        const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
-        const claimedByUser = claimedByUserId === currentUserId;
-        return {
-          ...baseBay,
-          status: 'Reserved' as Bay['status'],
-          reserved_by_you: claimedByUser,
-          reserved_by: claimedByUserId,
-          is_permanent: false
-        };
-      }
-      
-      // Check if temporarily available
-      if (temporarilyAvailableBays.has(bay.bay_id)) {
-        console.log(`Bay ${bay.bay_number} is temporarily available for today`);
-        return {
-          ...baseBay,
-          status: 'Available' as Bay['status']
-        };
-      }
-      
-      // Check permanent assignments
-      if (permanentAssignmentsMap.has(bay.bay_id)) {
-        const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
-        const assignedToUser = assignedToUserId === currentUserId;
+  const processedBays = baysData
+    .filter(bay => bay && bay.bay_id) // Filter out null/undefined bays
+    .map(bay => {
+      try {
+        // Ensure bay_number is numeric
+        if (bay.bay_number && typeof bay.bay_number === 'string') {
+          bay.bay_number = parseFloat(bay.bay_number);
+        }
         
-        // Check if the permanent assignee has cancelled for today
-        const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
-                            cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
+        // Cast to Bay type - this adds default properties
+        const baseBay = castToBay(bay);
         
-        console.log(`Bay ${bay.bay_number}: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
+        if (baseBay.status === 'Maintenance') {
+          return baseBay;
+        }
         
-        if (hasCancelledClaim) {
-          console.log(`Bay ${bay.bay_number} has been cancelled by its permanent assignee - marking as AVAILABLE`);
+        // Check active daily claims first (highest priority)
+        if (activeDailyClaimsMap.has(bay.bay_id)) {
+          const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
+          const claimedByUser = claimedByUserId === currentUserId;
+          return {
+            ...baseBay,
+            status: 'Reserved' as Bay['status'],
+            reserved_by_you: claimedByUser,
+            reserved_by: claimedByUserId,
+            is_permanent: false
+          };
+        }
+        
+        // Check if temporarily available
+        if (temporarilyAvailableBays.has(bay.bay_id)) {
+          console.log(`Bay ${bay.bay_number} is temporarily available for today`);
           return {
             ...baseBay,
             status: 'Available' as Bay['status']
           };
         }
         
+        // Check permanent assignments
+        if (permanentAssignmentsMap.has(bay.bay_id)) {
+          const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
+          const assignedToUser = assignedToUserId === currentUserId;
+          
+          // Check if the permanent assignee has cancelled for today
+          const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
+                            cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
+          
+          console.log(`Bay ${bay.bay_number}: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
+          
+          if (hasCancelledClaim) {
+            console.log(`Bay ${bay.bay_number} has been cancelled by its permanent assignee - marking as AVAILABLE`);
+            return {
+              ...baseBay,
+              status: 'Available' as Bay['status']
+            };
+          }
+          
+          return {
+            ...baseBay,
+            status: 'Reserved' as Bay['status'],
+            reserved_by_you: assignedToUser,
+            reserved_by: assignedToUserId,
+            is_permanent: true
+          };
+        }
+        
+        // If no claims or assignments, bay is available
         return {
           ...baseBay,
-          status: 'Reserved' as Bay['status'],
-          reserved_by_you: assignedToUser,
-          reserved_by: assignedToUserId,
-          is_permanent: true
+          status: 'Available' as Bay['status']
         };
+      } catch (error) {
+        console.error(`Error processing bay ${bay?.bay_number || 'unknown'}:`, error);
+        return null;
       }
-      
-      // If no claims or assignments, bay is available
-      return {
-        ...baseBay,
-        status: 'Available' as Bay['status']
-      };
-    } catch (error) {
-      console.error(`Error processing bay ${bay?.bay_number || 'unknown'}:`, error);
-      return null;
-    }
-  }).filter(Boolean) as Bay[]; // Filter out any null values that might have resulted from invalid bay objects
+    })
+    .filter(Boolean) as Bay[]; // Filter out any null values
   
   console.log(`Processed ${processedBays.length} bays successfully out of ${baysData.length} total bays`);
   return processedBays;
@@ -155,6 +170,7 @@ export const logBayStatus = (bays: Bay[]) => {
     return;
   }
   
+  console.log(`Logging status for ${bays.length} bays:`);
   bays.forEach(bay => {
     if (bay && bay.bay_number) {
       console.log(`Final status - Bay ${bay.bay_number}: ${bay.status}${bay.reserved_by ? ' (Reserved by: ' + bay.reserved_by + ')' : ''}`);
