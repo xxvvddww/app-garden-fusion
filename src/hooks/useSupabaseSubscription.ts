@@ -1,7 +1,7 @@
 
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 type SubscriptionConfig = {
   table: string;
@@ -64,15 +64,16 @@ export function useSupabaseSubscription(
           // Using the correct types for the Supabase Realtime API
           const channel = supabase
             .channel(channelName)
-            .on('postgres_changes', // Using the string literal here for clarity
+            .on(
+              'postgres_changes', // This is the correct event name
               {
                 event: cfg.event || '*',
                 schema: cfg.schema || 'public',
                 table: cfg.table,
                 filter: cfg.filter
               },
-              () => {
-                console.log(`Real-time update from ${cfg.table} table`);
+              (payload: RealtimePostgresChangesPayload<any>) => {
+                console.log(`Real-time update from ${cfg.table} table:`, payload);
                 if (isMountedRef.current) {
                   callbackRef.current();
                 }
