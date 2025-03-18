@@ -41,6 +41,8 @@ export function useBaysData() {
       
       if (!isMountedRef.current) return;
       
+      // Query permanent assignments that are active for today
+      // Include both current day of week and 'All Days'
       const { data: permanentAssignmentsData, error: assignmentsError } = await supabase
         .from('permanent_assignments')
         .select('bay_id, user_id, day_of_week, available_from, available_to')
@@ -77,7 +79,9 @@ export function useBaysData() {
       const permanentAssignmentsMap = new Map();
       const temporarilyAvailableBays = new Map();
       
+      // Fixed: Properly check day of week match and temporary availability
       permanentAssignmentsData.forEach(assignment => {
+        // Check if bay is temporarily made available by its permanent assignee
         const isTemporarilyAvailable = 
           assignment.available_from && 
           assignment.available_to && 
@@ -87,8 +91,14 @@ export function useBaysData() {
         if (isTemporarilyAvailable) {
           temporarilyAvailableBays.set(assignment.bay_id, assignment.user_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
-        } else if (!temporarilyAvailableBays.has(assignment.bay_id)) {
-          permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+        } 
+        // Only add to permanentAssignmentsMap if the day matches current day
+        else if (assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days') {
+          // If the bay isn't already marked as temporarily available, add it to permanent assignments
+          if (!temporarilyAvailableBays.has(assignment.bay_id)) {
+            permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+            console.log(`Bay ${assignment.bay_id} permanently assigned to ${assignment.user_id} for ${assignment.day_of_week}`);
+          }
         }
       });
       

@@ -71,6 +71,7 @@ export const useBayAssignments = () => {
       
       console.log('Fetched daily claims for table:', dailyData);
       console.log('Fetched permanent assignments for table:', permanentData);
+      console.log('Current day of week for table:', currentDayOfWeek);
       
       // Fetch user names
       const userIds = new Set<string>();
