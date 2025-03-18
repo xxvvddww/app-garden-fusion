@@ -1,4 +1,3 @@
-
 import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { supabase, refreshSession } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { RefreshCw } from 'lucide-react';
+import { getBasename } from '@/utils/routing';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -18,6 +18,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const basename = getBasename();
   
   // Track whether initial auth check has completed
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
@@ -49,6 +50,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
       authLoading,
       loading,
       currentPath: location.pathname,
+      basename,
       hasCheckedAuth,
       refreshAttempts
     });
@@ -62,7 +64,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     if (isMountedRef.current) {
       setLoading(authLoading || isRefreshing);
     }
-  }, [user, session, authLoading, location, hasCheckedAuth, refreshAttempts, isRefreshing]);
+  }, [user, session, authLoading, location, basename, hasCheckedAuth, refreshAttempts, isRefreshing]);
 
   // Force a session refresh on component mount if needed
   useEffect(() => {
@@ -209,7 +211,8 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   // If after refresh attempts we still don't have a user, redirect to login
   if (!session || !user) {
     console.log("User not authenticated after refresh attempts, redirecting to login");
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    const loginPath = '/login';
+    return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
   // Check if user has the required role

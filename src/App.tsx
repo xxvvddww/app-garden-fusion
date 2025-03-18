@@ -1,9 +1,8 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider, ThemeContextProvider } from "@/contexts/ThemeProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -16,7 +15,7 @@ import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { getBasename } from "@/utils/routing";
+import { getBasename, correctRoutePath } from "@/utils/routing";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient({
@@ -70,7 +69,21 @@ const DefaultRedirect = () => {
   return <Navigate to="/bays" replace />;
 };
 
-// Patch window.open to ensure it works properly
+const RouteCorrector = ({ children }: { children: React.ReactNode }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    const correctPath = correctRoutePath(location.pathname);
+    if (correctPath) {
+      console.log(`🔄 Correcting route from ${location.pathname} to ${correctPath}`);
+      navigate(correctPath, { replace: true });
+    }
+  }, [location.pathname, navigate]);
+  
+  return <>{children}</>;
+};
+
 if (typeof window !== 'undefined') {
   const originalOpen = window.open;
   window.open = function(url, target, features) {
@@ -87,7 +100,6 @@ const App = () => {
     console.log('🚀 App component mounted');
     console.log('🧭 Using basename:', basename);
     
-    // Log detailed environment information
     console.log('📊 Environment information:', {
       basename,
       location: window.location.href,
@@ -98,7 +110,6 @@ const App = () => {
       timestamp: new Date().toISOString()
     });
     
-    // Add unhandled error logging
     const handleError = (event: ErrorEvent) => {
       console.error('🔥 Unhandled error:', event.error);
       setLoadError(event.error);
@@ -111,7 +122,6 @@ const App = () => {
     };
   }, [basename]);
   
-  // If there's a critical error, show a user-friendly error message
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white p-4">
@@ -144,53 +154,55 @@ const App = () => {
                 <Toaster />
                 <Sonner />
                 <BrowserRouter basename={basename}>
-                  <Routes>
-                    <Route path="/login" element={<Login />} />
-                    
-                    <Route
-                      path="/"
-                      element={
-                        <ProtectedRoute>
-                          <DefaultRedirect />
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    <Route
-                      path="/bays"
-                      element={
-                        <ProtectedRoute>
-                          <MainLayout>
-                            <Bays />
-                          </MainLayout>
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    <Route
-                      path="/my-bay"
-                      element={
-                        <ProtectedRoute>
-                          <MainLayout>
-                            <MyBay />
-                          </MainLayout>
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    <Route
-                      path="/admin"
-                      element={
-                        <ProtectedRoute requiredRole="Admin">
-                          <MainLayout>
-                            <Admin />
-                          </MainLayout>
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
+                  <RouteCorrector>
+                    <Routes>
+                      <Route path="/login" element={<Login />} />
+                      
+                      <Route
+                        path="/"
+                        element={
+                          <ProtectedRoute>
+                            <DefaultRedirect />
+                          </ProtectedRoute>
+                        }
+                      />
+                      
+                      <Route
+                        path="/bays"
+                        element={
+                          <ProtectedRoute>
+                            <MainLayout>
+                              <Bays />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      
+                      <Route
+                        path="/my-bay"
+                        element={
+                          <ProtectedRoute>
+                            <MainLayout>
+                              <MyBay />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      
+                      <Route
+                        path="/admin"
+                        element={
+                          <ProtectedRoute requiredRole="Admin">
+                            <MainLayout>
+                              <Admin />
+                            </MainLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </RouteCorrector>
                 </BrowserRouter>
               </AuthProvider>
             </TooltipProvider>
