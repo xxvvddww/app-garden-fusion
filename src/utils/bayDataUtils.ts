@@ -1,6 +1,5 @@
 
 import { Bay, castToBay } from '@/types';
-import { format } from 'date-fns';
 
 /**
  * Process bay data and apply statuses based on assignments and claims
@@ -69,74 +68,82 @@ export const processBayData = (
   }
   
   // Process bays with all the collected information
-  return baysData.map(bay => {
+  const processedBays = baysData.map(bay => {
     if (!bay || !bay.bay_id) {
       console.error('Invalid bay object:', bay);
       return null;
     }
 
-    const baseBay = castToBay(bay);
-    
-    if (baseBay.status === 'Maintenance') {
-      return baseBay;
-    }
-    
-    // Check active daily claims first (highest priority)
-    if (activeDailyClaimsMap.has(bay.bay_id)) {
-      const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
-      const claimedByUser = claimedByUserId === currentUserId;
-      return {
-        ...baseBay,
-        status: 'Reserved' as Bay['status'],
-        reserved_by_you: claimedByUser,
-        reserved_by: claimedByUserId,
-        is_permanent: false
-      };
-    }
-    
-    // Check if temporarily available
-    if (temporarilyAvailableBays.has(bay.bay_id)) {
-      console.log(`Bay ${bay.bay_number} is temporarily available for today`);
-      return {
-        ...baseBay,
-        status: 'Available' as Bay['status']
-      };
-    }
-    
-    // Check permanent assignments
-    if (permanentAssignmentsMap.has(bay.bay_id)) {
-      const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
-      const assignedToUser = assignedToUserId === currentUserId;
+    try {
+      const baseBay = castToBay(bay);
       
-      // Check if the permanent assignee has cancelled for today
-      const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
-                          cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
+      if (baseBay.status === 'Maintenance') {
+        return baseBay;
+      }
       
-      console.log(`Bay ${bay.bay_number}: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
+      // Check active daily claims first (highest priority)
+      if (activeDailyClaimsMap.has(bay.bay_id)) {
+        const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
+        const claimedByUser = claimedByUserId === currentUserId;
+        return {
+          ...baseBay,
+          status: 'Reserved' as Bay['status'],
+          reserved_by_you: claimedByUser,
+          reserved_by: claimedByUserId,
+          is_permanent: false
+        };
+      }
       
-      if (hasCancelledClaim) {
-        console.log(`Bay ${bay.bay_number} has been cancelled by its permanent assignee - marking as AVAILABLE`);
+      // Check if temporarily available
+      if (temporarilyAvailableBays.has(bay.bay_id)) {
+        console.log(`Bay ${bay.bay_number} is temporarily available for today`);
         return {
           ...baseBay,
           status: 'Available' as Bay['status']
         };
       }
       
+      // Check permanent assignments
+      if (permanentAssignmentsMap.has(bay.bay_id)) {
+        const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
+        const assignedToUser = assignedToUserId === currentUserId;
+        
+        // Check if the permanent assignee has cancelled for today
+        const hasCancelledClaim = cancelledDailyClaimsMap.has(bay.bay_id) && 
+                            cancelledDailyClaimsMap.get(bay.bay_id).has(assignedToUserId);
+        
+        console.log(`Bay ${bay.bay_number}: Permanent assignment to ${assignedToUserId}, cancelled: ${hasCancelledClaim}`);
+        
+        if (hasCancelledClaim) {
+          console.log(`Bay ${bay.bay_number} has been cancelled by its permanent assignee - marking as AVAILABLE`);
+          return {
+            ...baseBay,
+            status: 'Available' as Bay['status']
+          };
+        }
+        
+        return {
+          ...baseBay,
+          status: 'Reserved' as Bay['status'],
+          reserved_by_you: assignedToUser,
+          reserved_by: assignedToUserId,
+          is_permanent: true
+        };
+      }
+      
+      // If no claims or assignments, bay is available
       return {
         ...baseBay,
-        status: 'Reserved' as Bay['status'],
-        reserved_by_you: assignedToUser,
-        reserved_by: assignedToUserId,
-        is_permanent: true
+        status: 'Available' as Bay['status']
       };
+    } catch (error) {
+      console.error(`Error processing bay ${bay?.bay_number || 'unknown'}:`, error);
+      return null;
     }
-    
-    // If no claims or assignments, bay is available
-    return {
-      ...baseBay,
-      status: 'Available' as Bay['status']
-    };
   }).filter(Boolean) as Bay[]; // Filter out any null values that might have resulted from invalid bay objects
+  
+  console.log(`Processed ${processedBays.length} bays successfully out of ${baysData.length} total bays`);
+  return processedBays;
 };
 
 /**

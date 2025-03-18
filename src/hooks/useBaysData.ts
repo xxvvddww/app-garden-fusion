@@ -26,6 +26,7 @@ export function useBaysData() {
     if (!isMountedRef.current) return;
     
     try {
+      console.log('Starting fetchBays...');
       setLoading(true);
       
       // Fetch all required data from Supabase
@@ -33,18 +34,24 @@ export function useBaysData() {
       
       if (!isMountedRef.current) return;
       
-      if (!result || !result.baysData) {
-        console.error('No bays data returned from fetchBayData');
-        throw new Error('No bays data returned');
+      if (!result) {
+        console.error('No data returned from fetchBayData');
+        throw new Error('No data returned');
       }
       
       const { baysData, dailyClaimsData, permanentAssignmentsData } = result;
       
+      console.log('Data fetched:', {
+        baysData: baysData?.length || 0,
+        dailyClaimsData: dailyClaimsData?.length || 0,
+        permanentAssignmentsData: permanentAssignmentsData?.length || 0
+      });
+      
       // Process the bay data
       const updatedBays = processBayData(
-        baysData, 
-        dailyClaimsData, 
-        permanentAssignmentsData,
+        baysData || [], 
+        dailyClaimsData || [], 
+        permanentAssignmentsData || [],
         userNames,
         user?.user_id,
         today,
@@ -52,11 +59,13 @@ export function useBaysData() {
       );
       
       if (isMountedRef.current) {
+        console.log('Processed bays:', updatedBays?.length || 0);
+        
         // Log for debugging
-        logBayStatus(updatedBays);
+        logBayStatus(updatedBays || []);
         
         // Update state with processed bays
-        setBays(updatedBays);
+        setBays(updatedBays || []);
         
         if (timeoutRef.current) {
           window.clearTimeout(timeoutRef.current);
@@ -66,6 +75,7 @@ export function useBaysData() {
         timeoutRef.current = window.setTimeout(() => {
           if (isMountedRef.current) {
             setLoading(false);
+            console.log('Loading state set to false');
           }
         }, 300);
       }
