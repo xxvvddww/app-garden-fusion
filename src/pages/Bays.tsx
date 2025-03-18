@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -88,6 +89,7 @@ const Bays = () => {
       const temporarilyAvailableBays = new Map();
       
       permanentAssignmentsData.forEach(assignment => {
+        // A bay is temporarily available if both dates exist AND today falls within those dates
         const isTemporarilyAvailable = 
           assignment.available_from && 
           assignment.available_to && 
@@ -97,8 +99,11 @@ const Bays = () => {
         if (isTemporarilyAvailable) {
           temporarilyAvailableBays.set(assignment.bay_id, assignment.user_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
-        } else if (!temporarilyAvailableBays.has(assignment.bay_id)) {
+        } else {
+          // If not temporarily available, it's a permanent assignment
+          // This handles both cases where available_from/to are null or when dates don't include today
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+          console.log(`Bay ${assignment.bay_id} has permanent assignment to user ${assignment.user_id}`);
         }
       });
       
@@ -142,6 +147,7 @@ const Bays = () => {
           return baseBay;
         }
         
+        // Daily claims take precedence over permanent assignments
         if (activeDailyClaimsMap.has(bay.bay_id)) {
           const claimedByUserId = activeDailyClaimsMap.get(bay.bay_id);
           const claimedByUser = claimedByUserId === user?.user_id;
@@ -154,6 +160,7 @@ const Bays = () => {
           };
         }
         
+        // Then check if bay is temporarily available
         if (temporarilyAvailableBays.has(bay.bay_id)) {
           console.log(`Bay ${bay.bay_number} is temporarily available for today`);
           return {
@@ -162,6 +169,7 @@ const Bays = () => {
           };
         }
         
+        // Then check permanent assignments
         if (permanentAssignmentsMap.has(bay.bay_id)) {
           const assignedToUserId = permanentAssignmentsMap.get(bay.bay_id);
           const assignedToUser = assignedToUserId === user?.user_id;
@@ -188,6 +196,7 @@ const Bays = () => {
           };
         }
         
+        // If no assignments, bay is available
         return {
           ...baseBay,
           status: 'Available' as Bay['status']
