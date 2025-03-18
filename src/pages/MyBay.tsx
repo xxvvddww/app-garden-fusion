@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import BayCard from '@/components/BayCard';
 import { AlertCircle } from 'lucide-react';
 import MakeBayAvailableDialog from '@/components/MakeBayAvailableDialog';
+import ReserveBayDialog from '@/components/ReserveBayDialog';
 import { format } from 'date-fns';
 
 const MyBay = () => {
@@ -19,6 +19,7 @@ const MyBay = () => {
   const [loading, setLoading] = useState(true);
   const [selectedBay, setSelectedBay] = useState<Bay | null>(null);
   const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
+  const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
   const { toast } = useToast();
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -91,41 +92,40 @@ const MyBay = () => {
     assignments.forEach(assignment => {
       console.log(`MyBay - Processing assignment for bay ${assignment.bay.bay_number}, day: ${assignment.day_of_week}`);
       
+      // Changed logic to include ALL permanent assignments for the current day, even if temporarily available
       if ((assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days')) {
         const isTemporarilyAvailable = assignment.available_from && assignment.available_to && 
                            today >= assignment.available_from && today <= assignment.available_to;
         
         console.log(`MyBay - Bay ${assignment.bay.bay_number} temporary availability:`, isTemporarilyAvailable);
         
-        if (!isTemporarilyAvailable) {
-          if (!uniqueBaysMap.has(assignment.bay.bay_id)) {
-            const hasCancelledClaim = dailyClaims.some(
-              claim => claim.bay_id === assignment.bay.bay_id && 
-                      claim.claim_date === today && 
-                      claim.status === 'Cancelled'
-            );
-            
-            console.log(`MyBay - Bay ${assignment.bay.bay_number} cancelled claim:`, hasCancelledClaim);
-            
-            if (!hasCancelledClaim) {
-              // Preserve the original status from the database for the bay
-              uniqueBaysMap.set(assignment.bay.bay_id, {
-                ...assignment.bay,
-                status: assignment.bay.status === 'Available' ? 'Reserved' as Bay['status'] : assignment.bay.status,
-                reserved_by_you: true
-              });
-              
-              console.log(`MyBay - Adding bay ${assignment.bay.bay_number} to myBays with status:`, 
-                uniqueBaysMap.get(assignment.bay.bay_id)?.status);
-            }
-          }
-        } else {
-          console.log(`Bay ${assignment.bay.bay_number} is temporarily available from ${assignment.available_from} to ${assignment.available_to}`);
-          // Don't show temporarily available bays in MyBay
+        // Check for cancelled claims regardless of temporary availability
+        const hasCancelledClaim = dailyClaims.some(
+          claim => claim.bay_id === assignment.bay.bay_id && 
+                  claim.claim_date === today && 
+                  claim.status === 'Cancelled'
+        );
+        
+        console.log(`MyBay - Bay ${assignment.bay.bay_number} cancelled claim:`, hasCancelledClaim);
+        
+        if (!hasCancelledClaim) {
+          // Add the bay to the map regardless of temporary availability
+          // If it's temporarily available, we'll show the correct status from the database
+          uniqueBaysMap.set(assignment.bay.bay_id, {
+            ...assignment.bay,
+            status: isTemporarilyAvailable ? assignment.bay.status : 
+                    (assignment.bay.status === 'Available' ? 'Reserved' as Bay['status'] : assignment.bay.status),
+            reserved_by_you: !isTemporarilyAvailable, // Only mark as reserved_by_you if not temporarily available
+            is_permanent: true
+          });
+          
+          console.log(`MyBay - Adding bay ${assignment.bay.bay_number} to myBays with status:`, 
+            uniqueBaysMap.get(assignment.bay.bay_id)?.status);
         }
       }
     });
     
+    // Add bays from daily claims
     dailyClaims.forEach(claim => {
       console.log(`MyBay - Processing daily claim for bay ID: ${claim.bay_id}`);
       
@@ -150,7 +150,20 @@ const MyBay = () => {
 
   const handleBayClick = (bay: Bay) => {
     setSelectedBay(bay);
-    setAvailabilityDialogOpen(true);
+    
+    // If the bay is available (temporarily made available), show reserve dialog
+    // Otherwise show make available dialog
+    if (bay.status === 'Available') {
+      setReserveDialogOpen(true);
+    } else {
+      setAvailabilityDialogOpen(true);
+    }
+  };
+
+  const handleReservationSuccess = () => {
+    // Refresh data after successful reservation
+    fetchUserAssignments();
+    fetchUserDailyClaims();
   };
 
   if (loading) {
@@ -189,6 +202,7 @@ const MyBay = () => {
               key={bay.bay_id} 
               bay={bay}
               onClick={handleBayClick}
+              isPermanent={bay.is_permanent}
             />
           ))}
         </div>
@@ -202,6 +216,13 @@ const MyBay = () => {
           fetchUserAssignments();
           fetchUserDailyClaims();
         }}
+      />
+      
+      <ReserveBayDialog
+        bay={selectedBay}
+        open={reserveDialogOpen}
+        onOpenChange={setReserveDialogOpen}
+        onSuccess={handleReservationSuccess}
       />
     </div>
   );
