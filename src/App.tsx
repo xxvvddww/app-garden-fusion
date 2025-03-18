@@ -12,6 +12,7 @@ import Login from "@/pages/Login";
 import Bays from "@/pages/Bays";
 import MyBay from "@/pages/MyBay";
 import Admin from "@/pages/Admin";
+import Users from "@/pages/Users";
 import NotFound from "./pages/NotFound";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -29,7 +30,7 @@ const queryClient = new QueryClient({
 const DefaultRedirect = () => {
   const { user } = useAuth();
   
-  // No longer need to check for assigned bay - always redirect to bays
+  // No longer need to check for assigned bay - always redirect to bays page
   console.log("DefaultRedirect: Redirecting user to bays page");
   return <Navigate to="/bays" replace />;
 };
@@ -83,6 +84,17 @@ const App = () => (
                     <ProtectedRoute requiredRole="Admin">
                       <MainLayout>
                         <Admin />
+                      </MainLayout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/users"
+                  element={
+                    <ProtectedRoute requiredRole="Admin">
+                      <MainLayout>
+                        <Users />
                       </MainLayout>
                     </ProtectedRoute>
                   }
