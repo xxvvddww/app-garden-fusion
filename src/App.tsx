@@ -31,13 +31,23 @@ const queryClient = new QueryClient({
 });
 
 const DefaultRedirect = () => {
+  console.log('⚡ DefaultRedirect component rendering');
   const { user } = useAuth();
   const [hasAssignedBay, setHasAssignedBay] = useState(false);
   const [loading, setLoading] = useState(true);
   
+  console.log('DefaultRedirect state:', { 
+    user: user ? `ID: ${user.user_id}` : 'No user', 
+    hasAssignedBay, 
+    loading 
+  });
+  
   useEffect(() => {
+    console.log('⚡ DefaultRedirect useEffect triggered with user:', user ? `ID: ${user.user_id}` : 'No user');
+    
     const checkUserAssignments = async () => {
       if (user) {
+        console.log('🔄 Checking if user has assigned bays');
         try {
           const { data, error } = await supabase
             .from('permanent_assignments')
@@ -45,15 +55,22 @@ const DefaultRedirect = () => {
             .eq('user_id', user.user_id)
             .limit(1);
             
-          if (error) throw error;
-          setHasAssignedBay(data && data.length > 0);
+          if (error) {
+            console.error('❌ Error checking assignments:', error);
+            throw error;
+          }
+          
+          const hasAssignments = data && data.length > 0;
+          console.log('✅ User assignments check result:', hasAssignments);
+          setHasAssignedBay(hasAssignments);
         } catch (error) {
-          console.error('Error checking user bay assignments:', error);
+          console.error('❌ Error checking user bay assignments:', error);
           setHasAssignedBay(false);
         } finally {
           setLoading(false);
         }
       } else {
+        console.log('⚠️ No user available, skipping assignments check');
         setLoading(false);
       }
     };
@@ -61,7 +78,12 @@ const DefaultRedirect = () => {
     checkUserAssignments();
   }, [user]);
 
-  if (loading) return null;
+  if (loading) {
+    console.log('⏳ DefaultRedirect is loading, returning null');
+    return null;
+  }
+  
+  console.log('🔄 DefaultRedirect navigating to:', hasAssignedBay ? '/my-bay' : '/bays');
   
   if (hasAssignedBay) {
     return <Navigate to="/my-bay" replace />;
@@ -74,12 +96,22 @@ const RouteCorrector = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   
+  console.log('⚡ RouteCorrector rendering with path:', location.pathname);
+  
   useEffect(() => {
-    console.log('📍 RouteCorrector checking path:', location.pathname);
+    console.log('📍 RouteCorrector effect checking path:', location.pathname);
+    console.log('📊 Current URL details:', {
+      pathname: location.pathname,
+      search: location.search,
+      hash: location.hash,
+      fullUrl: window.location.href
+    });
     
     // Handle the special case for the root path in preview environments
     if (isLovableEnvironment() && (location.pathname === '/' || location.pathname === '')) {
       const basename = getBasename();
+      console.log('🔍 Detected root path in preview environment with basename:', basename);
+      
       if (basename !== '/') {
         console.log(`🔄 Redirecting from root to ${basename}/login in preview environment`);
         navigate(`${basename}/login`, { replace: true });
@@ -91,6 +123,8 @@ const RouteCorrector = ({ children }: { children: React.ReactNode }) => {
     if (correctPath) {
       console.log(`🔄 Correcting route from ${location.pathname} to ${correctPath}`);
       navigate(correctPath, { replace: true });
+    } else {
+      console.log('✅ Current route is correct, no redirection needed');
     }
   }, [location.pathname, navigate]);
   
@@ -106,6 +140,7 @@ if (typeof window !== 'undefined') {
 }
 
 const App = () => {
+  console.log('⚡ App component rendering');
   const [loadError, setLoadError] = useState<Error | null>(null);
   const basename = getBasename();
   
@@ -144,6 +179,7 @@ const App = () => {
   }, [basename]);
   
   if (loadError) {
+    console.error('🔥 Rendering error state due to:', loadError);
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white p-4">
         <div className="max-w-md w-full bg-slate-900 rounded-lg shadow-xl p-6">
@@ -165,6 +201,7 @@ const App = () => {
     );
   }
 
+  console.log('🧭 App component setting up router with basename:', basename);
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -177,6 +214,7 @@ const App = () => {
                 <BrowserRouter basename={basename}>
                   <RouteCorrector>
                     <Routes>
+                      {console.log('📍 Setting up routes with basename:', basename)}
                       <Route path="/login" element={<Login />} />
                       
                       <Route

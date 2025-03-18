@@ -5,8 +5,10 @@
 
 // Detect if we're in a Lovable preview/production environment
 export const isLovableEnvironment = (): boolean => {
-  return window.location.hostname.includes('lovable.app') || 
+  const isLovable = window.location.hostname.includes('lovable.app') || 
          window.location.hostname.includes('lovableproject.com');
+  console.log('🔍 isLovableEnvironment check:', { isLovable, hostname: window.location.hostname });
+  return isLovable;
 };
 
 /**
@@ -27,19 +29,24 @@ export const getBasename = (): string => {
     // e.g., "preview--app-garden-fusion.lovable.app" -> "app-garden-fusion"
     const hostname = window.location.hostname;
     
+    console.log('🔎 Analyzing hostname for basename:', hostname);
+    
     if (hostname.includes('preview--')) {
       const appNameMatch = hostname.match(/preview--(.*?)\.lovable\.app/);
+      console.log('🔎 Preview hostname match result:', appNameMatch);
       
       if (appNameMatch && appNameMatch[1]) {
         const basename = `/${appNameMatch[1]}`;
         console.log(`✅ Using basename: ${basename} from preview URL`);
         return basename;
+      } else {
+        console.warn('⚠️ Failed to extract app name from preview URL:', hostname);
       }
     }
     
     // Extract from pathname as fallback
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
-    console.log('📊 Path segments:', pathSegments);
+    console.log('📊 Path segments for fallback basename:', pathSegments);
     
     if (pathSegments.length > 0) {
       const basename = `/${pathSegments[0]}`;
@@ -66,11 +73,19 @@ export const buildNavigationUrl = (path: string): string => {
   // Ensure we don't duplicate slashes
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   
-  if (isLovableEnvironment()) {
-    return `${baseUrl}${basename}${cleanPath}`;
-  }
+  const finalUrl = isLovableEnvironment() 
+    ? `${baseUrl}${basename}${cleanPath}`
+    : `${baseUrl}${cleanPath}`;
+    
+  console.log('🔗 buildNavigationUrl:', { 
+    path, 
+    baseUrl, 
+    basename, 
+    cleanPath, 
+    finalUrl 
+  });
   
-  return `${baseUrl}${cleanPath}`;
+  return finalUrl;
 };
 
 /**
@@ -84,16 +99,20 @@ export const correctRoutePath = (currentPath: string): string | null => {
   console.log('🛠️ correctRoutePath checking:', { 
     currentPath, 
     basename,
-    isLovableEnv: isLovableEnvironment()
+    isLovableEnv: isLovableEnvironment(),
+    fullUrl: window.location.href
   });
   
   // Get the path without the basename
   let relativePath = currentPath;
   if (basename !== '/' && currentPath.startsWith(basename)) {
     relativePath = currentPath.slice(basename.length);
+    console.log('🔍 Extracted relative path from basename:', relativePath);
+  } else {
+    console.log('🔍 Using original path as relative path (no basename extraction):', relativePath);
   }
   
-  console.log('🔍 Processing relative path:', relativePath);
+  console.log('🔎 Processing relative path for corrections:', relativePath);
   
   // Check for common routing issues
   if (relativePath === '/bays/login' || relativePath === 'bays/login') {
@@ -116,9 +135,11 @@ export const correctRoutePath = (currentPath: string): string | null => {
   // For root path in preview environment
   if (isLovableEnvironment() && (currentPath === '/' || currentPath === '')) {
     console.log('🔄 Correcting empty root path in preview environment');
-    return basename;
+    console.log(`⚡ Redirecting to ${basename}/login as default route`);
+    return `${basename}/login`;
   }
   
   // No correction needed
+  console.log('✅ No route correction needed for:', currentPath);
   return null;
 }

@@ -21,6 +21,7 @@ import {
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
+import { getBasename } from '@/utils/routing';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -34,6 +35,7 @@ interface NavigationItem {
 }
 
 const MainLayout = ({ children }: MainLayoutProps) => {
+  console.log('⚡ MainLayout rendering');
   const { theme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -41,10 +43,21 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   const isAdmin = user && user.role === 'Admin';
   const [hasAssignedBay, setHasAssignedBay] = useState(false);
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
+  const basename = getBasename();
+  
+  console.log('MainLayout state:', { 
+    user: user ? `ID: ${user.user_id}, Role: ${user.role}` : 'No user',
+    theme,
+    currentPath: location.pathname,
+    hasAssignedBay,
+    hasUnreadAnnouncements,
+    basename
+  });
   
   useEffect(() => {
     const checkUserAssignments = async () => {
       if (user) {
+        console.log('🔄 Checking if user has assigned bays');
         try {
           const { data, error } = await supabase
             .from('permanent_assignments')
@@ -52,10 +65,16 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             .eq('user_id', user.user_id)
             .limit(1);
             
-          if (error) throw error;
-          setHasAssignedBay(data && data.length > 0);
+          if (error) {
+            console.error('❌ Error checking assignments:', error);
+            throw error;
+          }
+          
+          const hasAssignments = data && data.length > 0;
+          console.log('✅ User assignments check result:', hasAssignments);
+          setHasAssignedBay(hasAssignments);
         } catch (error) {
-          console.error('Error checking user bay assignments:', error);
+          console.error('❌ Error checking user bay assignments:', error);
           setHasAssignedBay(false);
         }
       }
@@ -68,15 +87,21 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     // Only check for unread announcements if the user is an admin
     const checkUnreadAnnouncements = async () => {
       if (user && isAdmin) {
+        console.log('🔄 Checking for unread announcements');
         try {
           const { data, error } = await supabase
             .rpc('get_unread_announcements_for_user', { user_id_param: user.user_id });
             
-          if (error) throw error;
-          setHasUnreadAnnouncements(data && data.length > 0);
-          console.log('Unread announcements:', data?.length > 0);
+          if (error) {
+            console.error('❌ Error checking announcements:', error);
+            throw error;
+          }
+          
+          const hasUnread = data && data.length > 0;
+          console.log('✅ Unread announcements result:', hasUnread, 'count:', data?.length);
+          setHasUnreadAnnouncements(hasUnread);
         } catch (error) {
-          console.error('Error checking unread announcements:', error);
+          console.error('❌ Error checking unread announcements:', error);
           setHasUnreadAnnouncements(false);
         }
       }
@@ -86,25 +111,31 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     
     // Set up real-time subscription for announcements if user is admin
     if (user && isAdmin) {
+      console.log('🔔 Setting up announcements subscription');
       const channel = supabase
         .channel('public:announcements')
         .on('postgres_changes', 
           { event: 'INSERT', schema: 'public', table: 'announcements' }, 
-          () => {
+          (payload) => {
+            console.log('🔔 New announcement received:', payload);
             checkUnreadAnnouncements();
           }
         )
         .subscribe();
         
       return () => {
+        console.log('🧹 Cleaning up announcements subscription');
         supabase.removeChannel(channel);
       };
     }
   }, [user, isAdmin]);
 
   const handleSignOut = async () => {
+    console.log('🔄 Signing out user');
     await signOut();
-    navigate('/login');
+    const loginPath = `${basename}/login`;
+    console.log(`🔄 Navigating to login: ${loginPath}`);
+    navigate(loginPath);
   };
 
   // Update type of navigationItems to use the new interface
@@ -127,6 +158,9 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     });
   }
 
+  console.log('Navigation items:', navigationItems);
+  console.log('Current location:', location.pathname);
+  
   return (
     <div className="flex flex-col h-screen bg-background">
       <header className="bg-slate-900 text-white py-2 px-4 flex items-center justify-between">
@@ -197,6 +231,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       </div>
 
       <main className="flex-grow bg-slate-950 text-white overflow-y-auto p-6">
+        {console.log('🔍 Rendering children in MainLayout')}
         {children}
       </main>
     </div>

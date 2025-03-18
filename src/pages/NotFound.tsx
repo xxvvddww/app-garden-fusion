@@ -1,3 +1,4 @@
+
 import { useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { RefreshCw, Home, ArrowLeft } from "lucide-react";
 import { getBasename, isLovableEnvironment } from "@/utils/routing";
 
 const NotFound = () => {
+  console.log('⚡ NotFound page rendering');
   const location = useLocation();
   const [appInfo, setAppInfo] = useState({
     currentPath: '',
@@ -55,6 +57,7 @@ const NotFound = () => {
   }, [location]);
 
   const goBack = () => {
+    console.log('🔙 Going back in history');
     window.history.back();
   };
   
