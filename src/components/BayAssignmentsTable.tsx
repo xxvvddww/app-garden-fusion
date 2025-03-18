@@ -198,38 +198,70 @@ export const BayAssignmentsTable = () => {
   };
 
   useEffect(() => {
-    fetchAssignments();
+    let isMounted = true;
     
-    // Setup subscription for real-time updates
-    const dailyClaimsChannel = supabase
-      .channel('daily-claims-changes-for-table')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'daily_claims'
-        },
-        () => fetchAssignments()
-      )
-      .subscribe();
+    // Immediately fetch assignments when component mounts
+    const initialFetch = async () => {
+      await fetchAssignments();
+    };
+    
+    initialFetch();
+    
+    // Setup subscription for real-time updates with proper cleanup
+    const channels = [];
+    
+    // Only set up subscriptions if component is still mounted
+    if (isMounted) {
+      const dailyClaimsChannel = supabase
+        .channel('daily-claims-changes-for-table-' + Date.now())
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'daily_claims'
+          },
+          () => {
+            if (isMounted) {
+              console.log('Real-time update from daily_claims table');
+              fetchAssignments();
+            }
+          }
+        )
+        .subscribe();
       
-    const permanentAssignmentsChannel = supabase
-      .channel('permanent-assignments-changes-for-table')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'permanent_assignments'
-        },
-        () => fetchAssignments()
-      )
-      .subscribe();
+      channels.push(dailyClaimsChannel);
+        
+      const permanentAssignmentsChannel = supabase
+        .channel('permanent-assignments-changes-for-table-' + Date.now())
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'permanent_assignments'
+          },
+          () => {
+            if (isMounted) {
+              console.log('Real-time update from permanent_assignments table');
+              fetchAssignments();
+            }
+          }
+        )
+        .subscribe();
       
+      channels.push(permanentAssignmentsChannel);
+    }
+      
+    // Clean up function to prevent updates on unmounted component
     return () => {
-      supabase.removeChannel(dailyClaimsChannel);
-      supabase.removeChannel(permanentAssignmentsChannel);
+      console.log('Cleaning up BayAssignmentsTable subscriptions');
+      isMounted = false;
+      
+      // Properly remove all channels
+      channels.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
     };
   }, []);
 
