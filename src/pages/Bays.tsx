@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bay, castToBay } from '@/types';
@@ -190,31 +189,14 @@ const Bays = () => {
           // Mark this bay as temporarily available
           temporarilyAvailableBays.add(assignment.bay_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
-        } else if (!temporarilyAvailableBays.has(assignment.bay_id)) {
-          // Only add to permanent assignments map if not already marked as temporarily available
+        } else {
+          // Add to permanent assignments map
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
         }
       });
       
-      // Make a second pass to ensure temporary availability takes precedence
-      permanentAssignmentsData.forEach(assignment => {
-        const isTemporarilyAvailable = 
-          assignment.available_from && 
-          assignment.available_to && 
-          today >= assignment.available_from && 
-          today <= assignment.available_to;
-        
-        if (isTemporarilyAvailable) {
-          // If a bay is temporarily available, remove it from the permanent assignments map
-          if (permanentAssignmentsMap.has(assignment.bay_id)) {
-            console.log(`Removing bay ${assignment.bay_id} from permanent assignments because it's temporarily available`);
-            permanentAssignmentsMap.delete(assignment.bay_id);
-          }
-        }
-      });
-
       // Debug log permanent assignments
-      console.log('Permanent Assignments Map (excluding temporary availability):');
+      console.log('Permanent Assignments Map:');
       permanentAssignmentsMap.forEach((userId, bayId) => {
         console.log(`Bay ${bayId} assigned to: ${userId}`);
       });

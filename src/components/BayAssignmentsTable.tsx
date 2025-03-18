@@ -39,7 +39,7 @@ export const BayAssignmentsTable = () => {
         
       if (baysError) throw baysError;
       
-      // Fetch permanent assignments
+      // Fetch permanent assignments - fixed to fetch ALL permanent assignments
       const { data: permanentData, error: permanentError } = await supabase
         .from('permanent_assignments')
         .select(`
@@ -102,10 +102,14 @@ export const BayAssignmentsTable = () => {
       // Combine all data
       const allReservations: BayReservation[] = [];
       
-      // Add permanent assignments that apply to today
+      // Add ALL permanent assignments regardless of day, to show the full schedule
       permanentData.forEach(pa => {
-        // Only include permanent assignments for today or "All Days"
-        if (pa.day_of_week === currentDayOfWeek || pa.day_of_week === 'All Days') {
+        const bayNumber = baysData.find(b => b.bay_id === pa.bay_id)?.bay_number;
+        
+        if (bayNumber) {
+          // Check if this is for today's day of week
+          const isForToday = pa.day_of_week === currentDayOfWeek || pa.day_of_week === 'All Days';
+          
           // Check if temporarily available for today based on date range
           const isTemporarilyAvailable = 
             pa.available_from && pa.available_to && 
@@ -113,45 +117,41 @@ export const BayAssignmentsTable = () => {
             
           // Check if there's a cancellation for today
           const dailyClaims = dailyClaimsByBay.get(pa.bay_id) || [];
-          const cancelledForToday = dailyClaims.some(
+          const cancelledForToday = isForToday && dailyClaims.some(
             claim => claim.user_id === pa.user_id && claim.status === 'Cancelled'
           );
           
-          const bayNumber = baysData.find(b => b.bay_id === pa.bay_id)?.bay_number;
-          
-          if (bayNumber) {
-            if (isTemporarilyAvailable) {
-              console.log(`Table: Bay ${bayNumber} is temporarily available from ${pa.available_from} to ${pa.available_to}`);
-              allReservations.push({
-                bay_id: pa.bay_id,
-                bay_number: bayNumber,
-                reservation_type: 'Permanent',
-                day_or_date: pa.day_of_week,
-                user_name: userNames[pa.user_id] || 'Unknown',
-                status: `Temporarily available (${pa.available_from} to ${pa.available_to})`,
-                assignment_id: pa.assignment_id
-              });
-            } else if (cancelledForToday) {
-              allReservations.push({
-                bay_id: pa.bay_id,
-                bay_number: bayNumber,
-                reservation_type: 'Permanent',
-                day_or_date: pa.day_of_week,
-                user_name: userNames[pa.user_id] || 'Unknown',
-                status: 'Cancelled for today',
-                assignment_id: pa.assignment_id
-              });
-            } else {
-              allReservations.push({
-                bay_id: pa.bay_id,
-                bay_number: bayNumber,
-                reservation_type: 'Permanent',
-                day_or_date: pa.day_of_week,
-                user_name: userNames[pa.user_id] || 'Unknown',
-                status: 'Active',
-                assignment_id: pa.assignment_id
-              });
-            }
+          if (isForToday && isTemporarilyAvailable) {
+            allReservations.push({
+              bay_id: pa.bay_id,
+              bay_number: bayNumber,
+              reservation_type: 'Permanent',
+              day_or_date: pa.day_of_week,
+              user_name: userNames[pa.user_id] || 'Unknown',
+              status: `Temporarily available (${pa.available_from} to ${pa.available_to})`,
+              assignment_id: pa.assignment_id
+            });
+          } else if (isForToday && cancelledForToday) {
+            allReservations.push({
+              bay_id: pa.bay_id,
+              bay_number: bayNumber,
+              reservation_type: 'Permanent',
+              day_or_date: pa.day_of_week,
+              user_name: userNames[pa.user_id] || 'Unknown',
+              status: 'Cancelled for today',
+              assignment_id: pa.assignment_id
+            });
+          } else {
+            // Show regular permanent assignment with appropriate status
+            allReservations.push({
+              bay_id: pa.bay_id,
+              bay_number: bayNumber,
+              reservation_type: 'Permanent',
+              day_or_date: pa.day_of_week,
+              user_name: userNames[pa.user_id] || 'Unknown',
+              status: isForToday ? 'Active' : 'Scheduled',
+              assignment_id: pa.assignment_id
+            });
           }
         }
       });
@@ -293,11 +293,13 @@ export const BayAssignmentsTable = () => {
                     className={
                       reservation.status === 'Active' 
                         ? 'text-green-500' 
-                        : reservation.status === 'Cancelled for today'
-                          ? 'text-amber-500'
-                          : reservation.status.includes('Temporarily available')
-                            ? 'text-blue-500'
-                            : 'text-red-500'
+                        : reservation.status === 'Scheduled'
+                          ? 'text-blue-400'
+                          : reservation.status === 'Cancelled for today'
+                            ? 'text-amber-500'
+                            : reservation.status.includes('Temporarily available')
+                              ? 'text-blue-500'
+                              : 'text-red-500'
                     }
                   >
                     {reservation.status}
