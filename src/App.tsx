@@ -79,6 +79,28 @@ if (typeof window !== 'undefined') {
   };
 }
 
+// Determine the base URL for the router
+// This helps the app work in both development and production/preview environments
+const getBasename = () => {
+  // Extract the basename from the current URL
+  const urlPath = window.location.pathname;
+  
+  // Check if we're in a preview environment (lovable.app or similar domains)
+  if (window.location.hostname.includes('lovable.app') || 
+      window.location.hostname.includes('lovableproject.com')) {
+    
+    // For Lovable preview environments, use the correct base path
+    // Extract the first part of the path if it exists
+    const pathSegments = urlPath.split('/').filter(Boolean);
+    if (pathSegments.length > 0) {
+      return `/${pathSegments[0]}`;
+    }
+  }
+  
+  // Default to no basename for local development
+  return '/';
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -87,7 +109,7 @@ const App = () => (
           <AuthProvider>
             <Toaster />
             <Sonner />
-            <BrowserRouter>
+            <BrowserRouter basename={getBasename()}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 
