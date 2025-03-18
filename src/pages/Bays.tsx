@@ -90,6 +90,7 @@ const Bays = () => {
       const temporarilyAvailableBays = new Set();
       
       permanentAssignmentsData.forEach(assignment => {
+        // Only mark as temporarily available if BOTH dates are set and today is within range
         const isTemporarilyAvailable = 
           assignment.available_from && 
           assignment.available_to && 
@@ -100,6 +101,8 @@ const Bays = () => {
           temporarilyAvailableBays.add(assignment.bay_id);
           console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
         } else {
+          // Important: This means ALL permanent assignments that don't have valid date ranges 
+          // are considered permanently assigned
           permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
         }
       });
