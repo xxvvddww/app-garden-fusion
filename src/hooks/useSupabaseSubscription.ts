@@ -61,27 +61,28 @@ export function useSupabaseSubscription(
         console.log(`Setting up Supabase subscription for ${cfg.table}`);
         
         try {
-          // Using the correct types for the Supabase Realtime API
-          const channel = supabase
-            .channel(channelName)
-            .on(
-              'postgres_changes', 
-              {
-                event: cfg.event || '*',
-                schema: cfg.schema || 'public',
-                table: cfg.table,
-                filter: cfg.filter
-              },
-              (payload: RealtimePostgresChangesPayload<any>) => {
-                console.log(`Real-time update from ${cfg.table} table:`, payload);
-                if (isMountedRef.current) {
-                  callbackRef.current();
-                }
+          // Create a channel with the proper configuration
+          const channel = supabase.channel(channelName);
+          
+          // Listen for postgres changes with the correct typing
+          channel.on(
+            'postgres_changes' as any, // Use type assertion as a temporary fix
+            {
+              event: cfg.event || '*',
+              schema: cfg.schema || 'public',
+              table: cfg.table,
+              filter: cfg.filter
+            },
+            (payload: RealtimePostgresChangesPayload<any>) => {
+              console.log(`Real-time update from ${cfg.table} table:`, payload);
+              if (isMountedRef.current) {
+                callbackRef.current();
               }
-            )
-            .subscribe(status => {
-              console.log(`Subscription to ${cfg.table} status:`, status);
-            });
+            }
+          )
+          .subscribe(status => {
+            console.log(`Subscription to ${cfg.table} status:`, status);
+          });
           
           channelsRef.current.push(channel);
         } catch (error) {
