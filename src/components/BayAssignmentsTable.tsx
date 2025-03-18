@@ -43,7 +43,7 @@ export const BayAssignmentsTable = () => {
         
       if (baysError) throw baysError;
       
-      // Fetch permanent assignments - fixed to fetch ALL permanent assignments
+      // Fetch ALL permanent assignments regardless of day of week
       const { data: permanentData, error: permanentError } = await supabase
         .from('permanent_assignments')
         .select(`
