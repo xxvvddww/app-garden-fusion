@@ -66,9 +66,14 @@ export function useBaysData() {
       console.error('Error in fetchBays:', error);
       if (isMountedRef.current) {
         setLoading(false);
+        toast({
+          title: 'Error',
+          description: 'Failed to load bays data. Please try again.',
+          variant: 'destructive',
+        });
       }
     }
-  }, [fetchBayData, userNames, user, today, currentDayOfWeek]);
+  }, [fetchBayData, userNames, user, today, currentDayOfWeek, toast]);
   
   // Set up real-time subscriptions
   useSupabaseSubscription(
@@ -82,6 +87,7 @@ export function useBaysData() {
 
   // Initial fetch on component mount
   useEffect(() => {
+    console.log('Bays component mounted, fetching data...');
     isMountedRef.current = true;
     
     fetchBays();

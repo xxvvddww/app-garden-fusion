@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -48,8 +48,12 @@ export const useBayDataFetcher = () => {
       
       // Extract all user IDs for fetching names
       const userIds = new Set<string>();
-      dailyClaimsData.forEach(claim => userIds.add(claim.user_id));
-      permanentAssignmentsData.forEach(assignment => userIds.add(assignment.user_id));
+      dailyClaimsData.forEach(claim => {
+        if (claim.user_id) userIds.add(claim.user_id);
+      });
+      permanentAssignmentsData.forEach(assignment => {
+        if (assignment.user_id) userIds.add(assignment.user_id);
+      });
       
       // Fetch user names if there are any user IDs
       if (userIds.size > 0) {

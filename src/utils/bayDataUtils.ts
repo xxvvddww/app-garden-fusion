@@ -14,6 +14,11 @@ export const processBayData = (
   today: string,
   currentDayOfWeek: string
 ): Bay[] => {
+  if (!baysData || !Array.isArray(baysData)) {
+    console.error('Invalid or missing bays data:', baysData);
+    return [];
+  }
+
   // Create maps for easier lookup
   const activeDailyClaimsMap = new Map();
   const cancelledDailyClaimsMap = new Map();
@@ -21,39 +26,43 @@ export const processBayData = (
   const temporarilyAvailableBays = new Map();
   
   // Process daily claims
-  dailyClaimsData.forEach(claim => {
-    if (claim.status === 'Active') {
-      activeDailyClaimsMap.set(claim.bay_id, claim.user_id);
-    } else if (claim.status === 'Cancelled') {
-      if (!cancelledDailyClaimsMap.has(claim.bay_id)) {
-        cancelledDailyClaimsMap.set(claim.bay_id, new Set());
+  if (dailyClaimsData && Array.isArray(dailyClaimsData)) {
+    dailyClaimsData.forEach(claim => {
+      if (claim.status === 'Active') {
+        activeDailyClaimsMap.set(claim.bay_id, claim.user_id);
+      } else if (claim.status === 'Cancelled') {
+        if (!cancelledDailyClaimsMap.has(claim.bay_id)) {
+          cancelledDailyClaimsMap.set(claim.bay_id, new Set());
+        }
+        cancelledDailyClaimsMap.get(claim.bay_id).add(claim.user_id);
       }
-      cancelledDailyClaimsMap.get(claim.bay_id).add(claim.user_id);
-    }
-  });
+    });
+  }
   
   // Process permanent assignments
-  permanentAssignmentsData.forEach(assignment => {
-    // Check if bay is temporarily made available
-    const isTemporarilyAvailable = 
-      assignment.available_from && 
-      assignment.available_to && 
-      today >= assignment.available_from && 
-      today <= assignment.available_to;
-    
-    if (isTemporarilyAvailable) {
-      temporarilyAvailableBays.set(assignment.bay_id, assignment.user_id);
-      console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
-    } 
-    // Only add to permanentAssignmentsMap if the day matches current day
-    else if (assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days') {
-      // If the bay isn't already marked as temporarily available, add it to permanent assignments
-      if (!temporarilyAvailableBays.has(assignment.bay_id)) {
-        permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
-        console.log(`Bay ${assignment.bay_id} permanently assigned to ${assignment.user_id} for ${assignment.day_of_week}`);
+  if (permanentAssignmentsData && Array.isArray(permanentAssignmentsData)) {
+    permanentAssignmentsData.forEach(assignment => {
+      // Check if bay is temporarily made available
+      const isTemporarilyAvailable = 
+        assignment.available_from && 
+        assignment.available_to && 
+        today >= assignment.available_from && 
+        today <= assignment.available_to;
+      
+      if (isTemporarilyAvailable) {
+        temporarilyAvailableBays.set(assignment.bay_id, assignment.user_id);
+        console.log(`Bay ${assignment.bay_id} has temporary availability: ${assignment.available_from} to ${assignment.available_to}`);
+      } 
+      // Only add to permanentAssignmentsMap if the day matches current day
+      else if (assignment.day_of_week === currentDayOfWeek || assignment.day_of_week === 'All Days') {
+        // If the bay isn't already marked as temporarily available, add it to permanent assignments
+        if (!temporarilyAvailableBays.has(assignment.bay_id)) {
+          permanentAssignmentsMap.set(assignment.bay_id, assignment.user_id);
+          console.log(`Bay ${assignment.bay_id} permanently assigned to ${assignment.user_id} for ${assignment.day_of_week}`);
+        }
       }
-    }
-  });
+    });
+  }
   
   // Process bays with all the collected information
   return baysData.map(bay => {
