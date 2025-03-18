@@ -196,8 +196,8 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
     window.location.reload();
   };
 
-  // Show enhanced loading state when refreshing session
-  if (loading) {
+  // Ensure the refresh button is always clickable regardless of loading state
+  const renderLoadingScreen = () => {
     return (
       <div className="container mx-auto p-4 space-y-6">
         <div className="flex items-center space-x-2 mb-4">
@@ -212,7 +212,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           <Button 
             variant="outline" 
             onClick={handleManualRefresh} 
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 relative z-50 pointer-events-auto"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh Page
@@ -220,35 +220,19 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
         </div>
       </div>
     );
+  };
+
+  // Show enhanced loading state when refreshing session, but ensure button is clickable
+  if (loading) {
+    return renderLoadingScreen();
   }
 
-  // If after refresh attempts we still don't have a user, redirect to login
-  // But give more time before redirecting
+  // If after refresh attempts we still don't have a user, show refresh button before redirecting
+  // But give more time before redirecting on initial page load
   if (!session || !user) {
     // Wait longer before redirecting on initial page load
     if (refreshAttempts < 3) {
-      return (
-        <div className="container mx-auto p-4 space-y-6">
-          <div className="flex items-center space-x-2 mb-4">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <Skeleton className="h-8 w-64" />
-          </div>
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-64 w-full" />
-          
-          <div className="flex justify-center mt-8">
-            <Button 
-              variant="outline" 
-              onClick={handleManualRefresh} 
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh Page
-            </Button>
-          </div>
-        </div>
-      );
+      return renderLoadingScreen();
     }
     
     console.log("User not authenticated after refresh attempts, redirecting to login");
